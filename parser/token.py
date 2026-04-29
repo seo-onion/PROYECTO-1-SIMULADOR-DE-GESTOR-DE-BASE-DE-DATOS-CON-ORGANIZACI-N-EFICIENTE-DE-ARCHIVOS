@@ -1,5 +1,4 @@
 from enum import Enum, auto
-from dataclasses import dataclass
 from typing import Optional
 
 class TokenType(Enum):
@@ -45,18 +44,15 @@ class TokenType(Enum):
     ERR = auto()        # Error léxico
 
 
-@dataclass
 class Token:
-    type: TokenType
-    text: str
+    def __init__(self, type: TokenType, text: str, line: int, column: int):
+        self.type = type
+        self.text = text
+        self.line = line
+        self.column = column
     
-
-
     def __str__(self):
-        # Equivalente a tu sobrecarga del operador <<
-        return f"TOKEN({self.type.name}, {repr(self.text)})"
+        return f"TOKEN({self.type.name}, {repr(self.text)}, L:{self.line}, C:{self.column})"
 
-# --- Ejemplos de uso ---
-# tok1 = Token(TokenType.SELECT, "SELECT")
-# tok2 = Token(TokenType.ID, "usuarios")
-# tok3 = Token(TokenType.NUM, "42.5")
+    def __repr__(self):
+        return self.__str__()

@@ -1,4 +1,4 @@
-from token import Token, TokenType  # Asumiendo que guardaste la estructura anterior en token_def.py
+from token import Token, TokenType
 
 class Scanner:
     def __init__(self, source: str):
@@ -9,7 +9,6 @@ class Scanner:
         self.column = 1
         self.current_col = 1
         
-        # Diccionario para búsqueda O(1) de palabras reservadas (Case Insensitive en SQL)
         self.keywords = {
             "CREATE": TokenType.CREATE, "TABLE": TokenType.TABLE,
             "INDEX": TokenType.INDEX, "FROM": TokenType.FROM,
@@ -71,8 +70,8 @@ class Scanner:
             token_type = self.keywords.get(text.upper(), TokenType.ID)
             return Token(token_type, text, self.line, self.column)
 
-        # --- Números (Enteros y Flotantes para Coordenadas Espaciales) ---
-        elif c.isdigit():
+        # --- Números (Soporte para negativos y decimales) ---
+        elif c.isdigit() or (c == '-' and self._peek().isdigit()):
             while self._peek().isdigit():
                 self._advance()
             
@@ -147,3 +146,8 @@ def ejecutar_scanner(source_code: str):
         if tok.type == TokenType.ERR:
             print(f">>> ERROR LÉXICO DETENIDO <<<")
             break
+
+if __name__ == "__main__":
+    query = "SELECT * FROM users WHERE id = 10 AND location BETWEEN 1.5 AND 10.5;"
+    ejecutar_scanner(query)
+
