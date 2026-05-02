@@ -13,7 +13,7 @@ class Btree:
 		self.db_name=filename
 		self.format=table_format
 		self.key_index=key_index
-		self.key_type=table_format.split(' ')[key_index+1] # +1 por el igual que hay que agregar al inicio del formato para que no haya padding
+		self.key_type=table_format.split(' ')[key_index]
 		self.btree_file_name=filename+"btree"+"_index"+str(key_index)
 		# falta la logica de revisar si el
 		# file del btree existe o no y en caso no exista inicializarlo

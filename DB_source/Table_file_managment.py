@@ -27,7 +27,7 @@ class Header_dto:  # esto es lo que hay que pasarle a caada estructura de datos 
 		print("indeces de los atributos ",list(self.indexes))
 
 def __header_str_format(format:str):
-	return '= ' +'i '*4+str(len(format))+'s '+'i '+str(len(format.split(' ')))+'s'
+	return 'i '*4+str(len(format))+'s '+'i '+str(len(format.split(' ')))+'s'
 
 
 def __encode_header(h:tuple[int,int,int,int,str,int,str])->tuple[int,int,int,int,bytes,int,bytes]:
@@ -47,7 +47,7 @@ def __write_header(file_name:str,header:tuple[int,int,int,int,str,int,str]):
 	reg_format=header[4]
 	with open(file_name,edit) as f:
 		f.seek(0)
-		f.write(struct.pack(__header_str_format(reg_format),*__encode_header(header)))
+		f.write(struct.pack('= ' +a__header_str_format(reg_format),*__encode_header(header)))
 
 def __read_header(file_name:str)->tuple[int,int,int,int,str,int,str]:
 
@@ -70,7 +70,7 @@ def init_main_db(file_name:str,format:str):
 
 	header=__init_header(format)
 	with open(file_name,create) as f:
-		f.write(struct.pack(__header_str_format(format),*__encode_header(header)))
+		f.write(struct.pack('= ' +__header_str_format(format),*__encode_header(header)))
 
 	Header_dto(__read_header(file_name)).print()
 
