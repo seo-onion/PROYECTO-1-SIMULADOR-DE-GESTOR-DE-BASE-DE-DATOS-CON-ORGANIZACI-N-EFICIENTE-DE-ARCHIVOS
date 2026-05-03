@@ -426,17 +426,21 @@ class ExtendibleHash:
 
         Retorna el número de entradas indexadas.
         """
-        header_size = header.header_size
-        reg_number  = header.reg_number
+        header_size   = header.header_size
+        reg_number    = header.reg_number
+        disk_rec_size = header.reg_size   # incluye el byte de tombstone
         count = 0
         with open(self.db_filename, 'rb') as f:
             f.seek(header_size)
             for _ in range(reg_number):
                 db_off = f.tell()
-                raw    = f.read(self.db_rec_size)
-                if len(raw) < self.db_rec_size:
+                raw    = f.read(disk_rec_size)
+                if len(raw) < disk_rec_size:
                     break
-                record = struct.unpack(self.full_fmt, raw)
+                deleted = struct.unpack('?', raw[-1:])[0]
+                if deleted:
+                    continue
+                record = struct.unpack(self.full_fmt, raw[:-1])
                 key    = self._decode_key(record[self.key_index])
                 self.insert(key, db_off)
                 count += 1

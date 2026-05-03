@@ -1,27 +1,18 @@
 import os
 import sys
-import struct
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'DB_source'))
-from Table_file_managment import Header_dto
+from Table_file_managment import init_main_db, insert_record, read_db_header
 
 from sequential import SequentialIndex
 
 
-def _make_demo_db(db_file: str, fmt: str, rows: list) -> Header_dto:
-    """Escribe un archivo DB mínimo y devuelve su Header_dto.
-    Cabecera: 4 bytes (reg_count). Registros a continuación.
-    """
-    fmt_tok     = fmt.replace(' ', '')
-    header_size = struct.calcsize('= i')
-    reg_size    = struct.calcsize('= ' + fmt_tok)
-    with open(db_file, 'wb') as f:
-        f.write(struct.pack('= i', len(rows)))
-        for row in rows:
-            f.write(struct.pack('= ' + fmt_tok, *row))
-    att_number = len(fmt.split())
-    return Header_dto((header_size, len(rows), reg_size,
-                       len(fmt), fmt, att_number, 'N' * att_number))
+def _make_demo_db(db_file: str, fmt: str, rows: list):
+    """Crea un archivo DB con Table_file_managment e inserta las filas."""
+    init_main_db(db_file, fmt)
+    for row in rows:
+        insert_record(db_file, row)
+    return read_db_header(db_file)
 
 
 def test_sequential():
@@ -62,10 +53,7 @@ def test_sequential():
 
     # Inserción → área auxiliar; al llegar a k_threshold dispara rebuild
     print()
-    with open(db_file, 'r+b') as f:
-        f.seek(0, 2)
-        new_off = f.tell()
-        f.write(struct.pack('= i 30s f', 1006, b'George Park'.ljust(30), 4600.0))
+    new_off = insert_record(db_file, (1006, b'George Park'.ljust(30), 4600.0))
     idx.insert(1006, new_off)
     print(f"Tras insertar 1006: {idx.stats()}")
 

@@ -1,27 +1,20 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
-import struct
 
 sys.stdout.reconfigure(encoding='utf-8')
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'DB_source'))
-from Table_file_managment import Header_dto
+from Table_file_managment import init_main_db, insert_record, read_db_header
 
 from extendible_hash import ExtendibleHash
 
 
-def _make_demo_db(db_file: str, fmt: str, rows: list) -> Header_dto:
-    """DB mínima: cabecera 4 bytes (reg_count) + registros. Devuelve Header_dto."""
-    fmt_tok     = fmt.replace(' ', '')
-    header_size = struct.calcsize('= i')
-    reg_size    = struct.calcsize('= ' + fmt_tok)
-    with open(db_file, 'wb') as f:
-        f.write(struct.pack('= i', len(rows)))
-        for row in rows:
-            f.write(struct.pack('= ' + fmt_tok, *row))
-    att_number = len(fmt.split())
-    return Header_dto((header_size, len(rows), reg_size,
-                       len(fmt), fmt, att_number, 'N' * att_number))
+def _make_demo_db(db_file: str, fmt: str, rows: list):
+    """Crea un archivo DB con Table_file_managment e inserta las filas."""
+    init_main_db(db_file, fmt)
+    for row in rows:
+        insert_record(db_file, row)
+    return read_db_header(db_file)
 
 
 def test_extendible_hash():
@@ -65,10 +58,7 @@ def test_extendible_hash():
 
     # ── insert (nuevo registro en DB + índice) ────────────────────────────────
     print()
-    with open(db_file, 'r+b') as f:
-        f.seek(0, 2)
-        new_off = f.tell()
-        f.write(struct.pack('= i 30s f', 1017, b'Jorge Paz'.ljust(30), 5100.0))
+    new_off = insert_record(db_file, (1017, b'Jorge Paz'.ljust(30), 5100.0))
     idx.insert(1017, new_off)
     offsets = idx.search(1017)
     print(f"insert(1017) + search: {len(offsets)} resultado(s)")
@@ -83,12 +73,9 @@ def test_extendible_hash():
              (2003, b'Split Test 3'.ljust(30), 3.0),
              (2004, b'Split Test 4'.ljust(30), 4.0),
              (2005, b'Split Test 5'.ljust(30), 5.0)]
-    with open(db_file, 'r+b') as f:
-        f.seek(0, 2)
-        for eid, name_b, sal in extra:
-            off = f.tell()
-            f.write(struct.pack('= i 30s f', eid, name_b, sal))
-            idx.insert(eid, off)
+    for eid, name_b, sal in extra:
+        off = insert_record(db_file, (eid, name_b, sal))
+        idx.insert(eid, off)
     print(f"Tras 5 inserts extra: {idx.stats()}")
 
     # ── delete (en bucket primario) ───────────────────────────────────────────
@@ -105,10 +92,7 @@ def test_extendible_hash():
     print()
     ok = idx.delete(1007)
     print(f"delete(1007): {'OK' if ok else 'NO ENCONTRADO'}")
-    with open(db_file, 'r+b') as f:
-        f.seek(0, 2)
-        reins_off = f.tell()
-        f.write(struct.pack('= i 30s f', 1007, b'Elena Voss BACK'.ljust(30), 4900.0))
+    reins_off = insert_record(db_file, (1007, b'Elena Voss BACK'.ljust(30), 4900.0))
     idx.insert(1007, reins_off)
     offsets = idx.search(1007)
     print(f"re-insert(1007) + search: {len(offsets)} resultado(s)")
