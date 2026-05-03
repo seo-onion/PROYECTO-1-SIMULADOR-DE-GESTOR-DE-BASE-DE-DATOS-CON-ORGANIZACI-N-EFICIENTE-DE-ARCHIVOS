@@ -2,7 +2,7 @@ import struct
 import os
 
 create='w+b'
-edit='a+b'
+edit="rb+"
 
 class Header_dto:  # esto es lo que hay que pasarle a caada estructura de datos ya que
 	# Solo este archivo debe poder editar su propio header lo hice una clase porque pensaba
@@ -47,7 +47,7 @@ def __write_header(file_name:str,header:tuple[int,int,int,int,str,int,str]):
 	reg_format=header[4]
 	with open(file_name,edit) as f:
 		f.seek(0)
-		f.write(struct.pack('= ' +a__header_str_format(reg_format),*__encode_header(header)))
+		f.write(struct.pack('= ' +__header_str_format(reg_format),*__encode_header(header)))
 
 def __read_header(file_name:str)->tuple[int,int,int,int,str,int,str]:
 
@@ -65,8 +65,8 @@ def __read_header(file_name:str)->tuple[int,int,int,int,str,int,str]:
 	return header
 
 def init_main_db(file_name:str,format:str):
-	# if os.path.exists(file_name):
-	# 	raise Exception("no se puede inicializar un file que ya existe")
+	if os.path.exists(file_name):
+		raise Exception("no se puede inicializar un file que ya existe")
 
 	header=__init_header(format)
 	with open(file_name,create) as f:
