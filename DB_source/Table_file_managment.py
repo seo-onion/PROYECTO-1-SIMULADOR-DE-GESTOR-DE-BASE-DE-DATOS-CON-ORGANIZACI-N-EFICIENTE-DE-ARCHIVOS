@@ -64,6 +64,14 @@ def __read_header(file_name:str)->tuple[int,int,int,int,str,int,str]:
 		header=(header_size, reg_number, reg_size, format_str_size, format, att_number, indexes)
 	return header
 
+def read_db_header(file_name: str) -> Header_dto:
+	"""Devuelve el Header_dto del archivo de BD principal.
+	Usar para pasarle contexto a los índices:
+	    h = read_db_header("tabla.bin")
+	    idx.build_from_db(h)
+	"""
+	return Header_dto(__read_header(file_name))
+
 def init_main_db(file_name:str,format:str):
 	if os.path.exists(file_name):
 		raise Exception("no se puede inicializar un file que ya existe")
