@@ -1,1 +1,15 @@
 GEMINI.md
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Archivos binarios generados por los índices y tests
+*.bin
+
+# IDEs
+.idea/
+.vscode/
+*.iml

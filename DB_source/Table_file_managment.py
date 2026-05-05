@@ -36,7 +36,7 @@ def __encode_header(h:tuple[int,int,int,int,str,int,str])->tuple[int,int,int,int
 
 def __init_header(format:str)->tuple[int,int,int,int,str,int,str]:
 	reg_number = 0
-	reg_size = struct.calcsize(format)
+	reg_size = struct.calcsize('= ' + format) + 1  # +1 byte de tombstone; '= ' para no incluir padding nativo
 	format_str_size = len(format)
 	att_number = len(format.split(' '))
 	indexes = str('N' * att_number ) # le puse N de nada pero hay que ponernos de acuerdo para que haya un caracter por cada estructura de datos
@@ -63,6 +63,49 @@ def __read_header(file_name:str)->tuple[int,int,int,int,str,int,str]:
 		indexes = struct.unpack(str(att_number)+'s',f.read(att_number))[0].decode('utf-8')
 		header=(header_size, reg_number, reg_size, format_str_size, format, att_number, indexes)
 	return header
+
+def insert_record(file_name: str, record: tuple) -> int:
+	"""Añade un registro al final del archivo DB.
+
+	record    : tupla con los valores del formato del registro (sin tombstone).
+	Devuelve el db_offset del registro recién escrito para pasárselo a los índices.
+	"""
+	h = Header_dto(__read_header(file_name))
+	rec_fmt  = '= ' + h.format + ' ?'
+	db_offset = h.header_size + h.reg_number * h.reg_size
+	with open(file_name, edit) as f:
+		f.seek(db_offset)
+		f.write(struct.pack(rec_fmt, *record, False))
+	raw = list(__read_header(file_name))
+	raw[1] += 1  # reg_number++
+	__write_header(file_name, tuple(raw))
+	return db_offset
+
+def delete_record(file_name: str, db_offset: int) -> bool:
+	"""Marca el registro en db_offset como eliminado (tombstone).
+
+	db_offset : offset devuelto por insert_record o por un índice (search/range_search).
+	Devuelve False si el registro ya estaba eliminado.
+	El registro sigue ocupando espacio; sus db_offsets almacenados en índices siguen válidos.
+	"""
+	h = Header_dto(__read_header(file_name))
+	tombstone_pos = db_offset + h.reg_size - 1  # último byte del registro en disco
+	with open(file_name, edit) as f:
+		f.seek(tombstone_pos)
+		already_deleted = struct.unpack('?', f.read(1))[0]
+		if already_deleted:
+			return False
+		f.seek(tombstone_pos)
+		f.write(struct.pack('?', True))
+	return True
+
+def read_db_header(file_name: str) -> Header_dto:
+	"""Devuelve el Header_dto del archivo de BD principal.
+	Usar para pasarle contexto a los índices:
+	    h = read_db_header("tabla.bin")
+	    idx.build_from_db(h)
+	"""
+	return Header_dto(__read_header(file_name))
 
 def init_main_db(file_name:str,format:str):
 	if os.path.exists(file_name):
