@@ -1,4 +1,7 @@
-from token import Token, TokenType
+try:
+    from .token import Token, TokenType
+except ImportError:
+    from token import Token, TokenType
 
 class Scanner:
     def __init__(self, source: str):
