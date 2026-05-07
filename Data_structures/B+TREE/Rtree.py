@@ -11,9 +11,8 @@ M = 4   # máximo de hijos/entradas por nodo
 m = 2   # mínimo (aprox. M/2)
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # RTreeNode
-# ──────────────────────────────────────────────────────────────────────────────
+
 # Estructura de un nodo:
 #   fullness  : int  (cuántas entradas tiene actualmente)
 #   is_leaf   : bool
@@ -52,9 +51,8 @@ class RTreeNode:
             print(f"  [{i}] bbox={self.bboxes[i]}  ptr={self.pointers[i]}")
 
 
-# ──────────────────────────────────────────────────────────────────────────────
+
 # Helpers geometricos
-# ──────────────────────────────────────────────────────────────────────────────
 
 def _bbox_from_point(point: Sequence[float]) -> Tuple[float, ...]:
     p = [float(x) for x in point]
@@ -81,9 +79,9 @@ def _euclidean(a: Sequence[float], b: Sequence[float]) -> float:
     return math.sqrt(sum((float(a[i]) - float(b[i]))**2 for i in range(len(a))))
 
 
-# ──────────────────────────────────────────────────────────────────────────────
+
 # RTree
-# ──────────────────────────────────────────────────────────────────────────────
+
 
 class RTree:
     """
@@ -148,7 +146,7 @@ class RTree:
             root = RTreeNode(self.dim, 0, [], [], True)
             self.__write_node(root, self.HEADER_SIZE)
 
-    # ── Parseo de dimension ───────────────────────────────────────────────────
+    # Parseo de dimension
 
     @staticmethod
     def _parse_dimension(column: str) -> int:
@@ -160,7 +158,7 @@ class RTree:
                 break
         return n if n > 0 else 2
 
-    # ── Header ────────────────────────────────────────────────────────────────
+    # Header
 
     def __initialize_header(self):
         with open(self.rtree_file_name, create) as f:
@@ -222,7 +220,7 @@ class RTree:
         self.__update_free_list(next_free)
         return free_list
 
-    # ── Serializacion de nodos ────────────────────────────────────────────────
+    # Serializacion de nodos
 
     def __write_node(self, node: RTreeNode, address: int):
         with open(self.rtree_file_name, edit) as f:
@@ -262,7 +260,7 @@ class RTree:
         node.address = address
         return node
 
-    # ── Insert ────────────────────────────────────────────────────────────────
+    # Insert
 
     def insert(self, point: Sequence[float], row_off: int) -> None:
         """
@@ -411,7 +409,7 @@ class RTree:
                     s1, s2 = i, j
         return s1, s2
 
-    # ── Search exacto ─────────────────────────────────────────────────────────
+    # Search exacto
 
     def search(self, point: Sequence[float]) -> List[int]:
         """
@@ -425,7 +423,7 @@ class RTree:
         self.__search_recursive(self.__get_root(), bbox, result, exact=True)
         return result
 
-    # ── Range search ──────────────────────────────────────────────────────────
+    # Range search
 
     def range_search(self, point: Sequence[float], radius: float) -> List[int]:
         """
@@ -458,7 +456,7 @@ class RTree:
             else:
                 self.__search_recursive(node.pointers[i], query_bbox, result, exact)
 
-    # ── KNN search ────────────────────────────────────────────────────────────
+    # KNN search
 
     def knn_search(self, point: Sequence[float], k: int) -> List[int]:
         """
@@ -500,7 +498,7 @@ class RTree:
 
         return result
 
-    # ── Delete ────────────────────────────────────────────────────────────────
+    # Delete
 
     def delete(self, row_off: int) -> List[int]:
         """
