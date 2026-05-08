@@ -66,6 +66,7 @@ class BTreeNode:
 			if val<self.values[i] or i==self.fullness:
 				return i
 		return self.fullness
+
 	def get_child_index(self, val)->int:
 		index=-1
 		for i in range(self.fullness):
@@ -80,16 +81,20 @@ class BTreeNode:
 	def merge(self,brother):
 		if self.fullness+brother.fullness>=B:
 			raise Exception("no se puede hacer merge porrque los hermanos tienen demasiados valores en conjunto")
+
+
 		self.fullness+=brother.fullness
 		self.values=self.values+brother.values
-		self.pointers.pop()
+		if self.is_leaf:
+			self.pointers.pop()
 		self.pointers=self.pointers+brother.pointers
 
 	def get_ptr_index(self,ptr:int):
 		for i in range(len(self.pointers)):
 			if self.pointers[i]==ptr:
 				return i
-		raise Exception("puntero no se encuentra en el nodo")
+		return -1
+
 	def delete_by_ptr_leaf(self,ptr:int):
 		for i in range(len(self.pointers)):
 			if self.pointers[i]==ptr:
@@ -110,6 +115,7 @@ class BTreeNode:
 				#self.print()
 				return
 		raise Exception("puntero no se encuentra en el nodo")
+
 	def search(self,val,ptr:int):
 		try:
 			v_index = self.values.index(val)
@@ -317,6 +323,7 @@ class Btree:
 		nodes=[]
 		self.__recursive_get_all_nodes(root_ptr,nodes)
 		return nodes
+
 	def __search_pathing(self,val):
 		path: list[BTreeNode] = []
 		current_node = self.__read_node(self.__get_root())
@@ -328,7 +335,15 @@ class Btree:
 			current_node = self.__read_node(new_address)
 			current_node.address = new_address
 			path.append(current_node)
+		if val not in current_node.values:
+			node=path.pop()
+			address=node.pointers[node.fullness]
+			node=self.__read_node(address)
+			node.address=address
+			path.append(node)
+
 		return path
+
 	def __pathing(self,val):
 		path: list[BTreeNode] = []
 		current_node = self.__read_node(self.__get_root())
@@ -350,62 +365,85 @@ class Btree:
 		self.__update_free_list(address)
 		self.__write_node(BTreeNode(-1,[],[free_list],False),address)
 
+	def __give_onelr(self,left:BTreeNode,father:BTreeNode,right:BTreeNode):
+		right.values.insert(0,left.values.pop())
+		right.pointers.insert(0,left.pointers.pop(left.fullness-1))
+		left.fullness-=1
+		right.fullness+=1
+		l_index=father.get_ptr_index(left.address)
+		father.values[l_index]=right.values[0]
+		self.__write_node(left,left.address)
+		self.__write_node(father,father.address)
+		self.__write_node(right,right.address)
 
+	def __give_onerl(self, left: BTreeNode, father: BTreeNode, right: BTreeNode):
+		left.values.append(right.values.pop(0))
+		left.pointers.append(right.pointers.pop(0))
+		left.fullness+=1
+		right.fullness-=1
+		l_index = father.get_ptr_index(left.address)
+		father.values[l_index] = right.values[0]
 
-	def __recursive_delete_and_merge(self,path:list[BTreeNode],node_index:int,ptr:int,changed_nodes:list[BTreeNode]):
-		node=path[node_index]
+		self.__write_node(left, left.address)
+		self.__write_node(father, father.address)
+		self.__write_node(right, right.address)
+
+	def __merge_nodes(self,left:BTreeNode,right:BTreeNode):
+		if not left.is_leaf:
+			middle=self.__read_node(right.pointers[0])
+			right.values.insert(0,middle.values[0])
+		left.merge(right)
+		# if left.is_leaf:
+		# 	left.print()
+		self.__delete_node(right)
+		self.__write_node(left,left.address)
+
+	def __recursive_delete_and_merge(self,path:list[BTreeNode],node_index:int,ptr:int):
+		address=path[node_index].address
+		node=self.__read_node(address)
+		node.address=address
 		if node.is_leaf:
 			node.delete_by_ptr_leaf(ptr)
 		else:
 			node.delete_by_ptr(ptr)
 
-		changed_nodes.append(node)
 		if node.fullness>=math.ceil(B/2)-1:
+			self.__write_node(node,node.address)
 			return
+
 		if node_index==0:
 			if node.fullness>0:
+				self.__write_node(node, node.address)
 				return
-			self.__delete_node(node.address)
+			self.__delete_node(node)
 			self.__update_root(node.pointers[0])
-			changed_nodes.pop()
 			return
-		father=path[node_index-1]
-		ptr_index=father.get_ptr_index(node.address)
 
+		father_address=path[node_index-1].address
+		father=self.__read_node(father_address)
+		father.address=father_address
+		ptr_index=father.get_ptr_index(node.address)
 		if ptr_index==0:
 			right_brother=self.__read_node(father.pointers[ptr_index+1])
 			right_brother.address=father.pointers[ptr_index+1]
-			if right_brother.fullness >math.ceil(B/2)-1:
-				changed_nodes.append(right_brother)
-				changed_nodes.append(father)
-				right_brother.fullness-=1
-				node.values.insert(node.fullness,right_brother.values.pop(0))
-				node.pointers.insert(node.fullness,right_brother.pointers.pop(0))
-				node.fullness+=1
-				father.values[father.get_ptr_index(node.address)]=node.values[node.fullness-1]
+
+			if right_brother.fullness > math.ceil(B/2)-1:
+				self.__give_onerl(node,father,right_brother)
 				return
-			node.merge(right_brother)
-			self.__delete_node(right_brother)
-			self.__recursive_delete_and_merge(path,node_index-1,right_brother.address,changed_nodes)
+
+			self.__merge_nodes(node,right_brother)
+			self.__recursive_delete_and_merge(path, node_index - 1, right_brother.address)
 			return
 
 		if ptr_index==father.fullness:
-			left_brother=self.__read_node(father.pointers[ptr_index+-1])
-			left_brother.address=father.pointers[ptr_index+-1]
+			left_brother=self.__read_node(father.pointers[ptr_index-1])
+			left_brother.address=father.pointers[ptr_index-1]
 			if left_brother.fullness >math.ceil(B/2)-1:
-				changed_nodes.append(left_brother)
-				changed_nodes.append(father)
-				left_brother.fullness-=1
-				node.values.insert(0,left_brother.values.pop(left_brother.fullness))
-				node.pointers.insert(0,left_brother.pointers.pop(left_brother.fullness))
-				node.fullness+=1
-				father.values[father.get_ptr_index(left_brother.address)]=left_brother.values[left_brother.fullness-1]
+				self.__give_onelr(left_brother,father,node)
 				return
-			left_brother.merge(node)
-			self.__delete_node(node)
-			changed_nodes.pop()
-			changed_nodes.append(left_brother)
-			self.__recursive_delete_and_merge(path, node_index - 1, node.address, changed_nodes)
+
+			self.__merge_nodes(left_brother,node)
+			self.__recursive_delete_and_merge(path, node_index - 1, node.address)
 			return
 
 		left_brother = self.__read_node(father.pointers[ptr_index - 1])
@@ -414,73 +452,69 @@ class Btree:
 		right_brother.address = father.pointers[ptr_index + 1]
 
 		if left_brother.fullness > math.ceil(B / 2) - 1:
-			changed_nodes.append(left_brother)
-			changed_nodes.append(father)
-			left_brother.fullness -= 1
-			node.values.insert(0, left_brother.values.pop(left_brother.fullness ))
-			node.pointers.insert(0, left_brother.pointers.pop(left_brother.fullness ))
-			node.fullness += 1
-			father.values[father.get_ptr_index(left_brother.address)] = left_brother.values[left_brother.fullness - 1]
+			self.__give_onelr(left_brother, father, node)
 			return
 
 		if right_brother.fullness > math.ceil(B / 2) - 1:
-			changed_nodes.append(right_brother)
-			changed_nodes.append(father)
-			right_brother.fullness -= 1
-			node.values.insert(node.fullness, right_brother.values.pop(0))
-			node.pointers.insert(node.fullness, right_brother.pointers.pop(0))
-			node.fullness += 1
-			father.values[father.get_ptr_index(node.address)] = node.values[node.fullness - 1]
+			self.__give_onerl(node, father, right_brother)
 			return
+		self.__merge_nodes(node,right_brother)
+		self.__recursive_delete_and_merge(path, node_index - 1, right_brother.address)
 
-		left_brother.merge(node)
-		self.__delete_node(node)
-		changed_nodes.pop()
-		changed_nodes.append(left_brother)
-		#node.print()
 
-		self.__recursive_delete_and_merge(path, node_index - 1, node.address, changed_nodes)
 
+	def __linear_search_ptr(self,node:BTreeNode,val,ptr:int):
+		it=node
+		index=node.get_ptr_index(ptr)
+
+		while index==-1 or index==it.fullness:
+			if it.pointers[it.fullness]==-1 or it.values[0]>val:
+				return None
+			address=it.pointers[it.fullness]
+			it=self.__read_node(address)
+			it.address=address
+			index=it.get_ptr_index(ptr)
+		return it
+
+	def __linear_search_val(self,node:BTreeNode,val):
+		it=node
+		index=node.get_index(val)
+
+		while index==it.fullness:
+			if it.pointers[it.fullness]==-1 or it.values[0]>val:
+				return None
+			address=it.pointers[index]
+			it=self.__read_node(address)
+			it.address=address
+			index=it.get_index(val)
+
+		return it
 
 	def delete(self,val,ptr:int)->bool:#el pointer es necesario porque puede haber varias llaves iguales
 		path=self.__search_pathing(val)
 		current_node=path[len(path)-1]
-		original_address=current_node.address
-		v_index,ptr_index=current_node.search(val,ptr)
-		while_entered=v_index!=ptr_index
 
-		#print(val,ptr)
-		while not v_index == ptr_index:
-			address = current_node.pointers[current_node.fullness]
-			if address == -1:
-				break
-			current_node = self.__read_node(address)
-			current_node.address = address
-			v_index, ptr_index = current_node.search(val, ptr)
+		target_node=self.__linear_search_ptr(current_node,val,ptr)
 
-		if v_index==-1:
-			return False
-		if while_entered:
-			first_leaf=self.__read_node(original_address)
-			first_leaf.address=original_address
-			first_index=first_leaf.get_index(val)
-			first_leaf.pointers[first_index],current_node.pointers[ptr_index]=current_node.pointers[ptr_index],first_leaf.pointers[first_index]
-			self.__write_node(first_leaf,first_leaf.address)
-			self.__write_node(current_node,current_node.address)
-			path[len(path)-1]=first_leaf
+		if target_node is None:
+			return False,(val,ptr)
 
-		if current_node.address != original_address:
-			path[len(path) - 1] = current_node
-		changed_nodes=[]
-		if val not in path[len(path)-1].values:
-			return False
-		self.__recursive_delete_and_merge(path,len(path)-1,ptr,changed_nodes)
+		# current_node.print()
+		# target_node.print()
+		# print("------------------------")
 
-		for node in changed_nodes:
-			#node.print()
-			self.__write_node(node,node.address)
-		#print("aaaaaa")
-		return True
+		first_index=current_node.values.index(val)
+		actual_index=target_node.get_ptr_index(ptr)
+		target_node.pointers[actual_index]=current_node.pointers[first_index]
+		current_node.pointers[first_index]=ptr
+
+		self.__write_node(current_node,current_node.address)
+		self.__write_node(target_node,target_node.address)
+
+		self.__recursive_delete_and_merge(path,len(path)-1,ptr)
+
+
+		return True,(val,ptr)
 
 	def range_search(self,low,high)->list:
 		#print('xd')
@@ -497,21 +531,27 @@ class Btree:
 					return rango
 				if current_node.values[i]>=low:
 					rango.append((current_node.values[i],current_node.pointers[i]))
+			# rango.append("||||")
 			if current_node.pointers[current_node.fullness]==-1:
 				return rango
 			current_node=self.__read_node(current_node.pointers[current_node.fullness])
-	def search(self,val,ptr):
+
+	def exists(self,val,ptr):
 		path = self.__search_pathing(val)
 		current_node = path[len(path) - 1]
 		val_index, ptr_index = current_node.search(val, ptr)
 		while val_index!=ptr_index:
-			if current_node[0]>val_index:
-				return None
+			if current_node.values[0]>val_index:
+				return False
 			if current_node.pointers[current_node.fullness]==-1:
-				return None
+				return False
 			val_index, ptr_index = current_node.search(val, ptr)
 
 		if val_index==-1:
-			return None
+			return False
 
-		return (current_node.values[val_index],current_node.pointers[ptr_index])
+		return True
+
+	def search(self,val):
+		return self.range_search(val,val) #se ve equisde pero asi es la vida
+
