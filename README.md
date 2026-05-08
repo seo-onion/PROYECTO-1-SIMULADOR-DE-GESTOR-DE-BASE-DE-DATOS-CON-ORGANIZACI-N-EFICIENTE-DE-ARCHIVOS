@@ -76,19 +76,279 @@ El backend levanta en:
 http://127.0.0.1:8000
 ```
 
-Endpoints disponibles:
+## Endpoints disponibles
 
 - `GET /health`
 - `GET /tables`
 - `GET /tables/{table_name}`
 - `POST /query`
 
-Ejemplo de request:
+## Ejemplos JSON por endpoint
+
+### `GET /health`
+Response:
 
 ```json
-POST /query
 {
-  "sql": "SELECT * FROM demo WHERE id = 1;"
+  "ok": true,
+  "service": "db-engine-backend"
+}
+```
+
+### `GET /tables`
+Response:
+
+```json
+{
+  "ok": true,
+  "tables": [
+    {
+      "name": "alumnos",
+      "db_file": "C:/ruta/al/proyecto/runtime/tables/alumnos/alumnos.bin",
+      "struct_format": "i 50s f",
+      "source_path": null,
+      "columns": [
+        {
+          "name": "id",
+          "type_name": "INT",
+          "index_technique": "HASH",
+          "struct_tokens": ["i"],
+          "dimension": 1,
+          "length": null
+        },
+        {
+          "name": "nombre",
+          "type_name": "VARCHAR(50)",
+          "index_technique": null,
+          "struct_tokens": ["50s"],
+          "dimension": 1,
+          "length": 50
+        },
+        {
+          "name": "promedio",
+          "type_name": "FLOAT",
+          "index_technique": "BTREE",
+          "struct_tokens": ["f"],
+          "dimension": 1,
+          "length": null
+        }
+      ],
+      "indexes": ["id", "promedio"],
+      "row_count": 2
+    }
+  ]
+}
+```
+
+### `GET /tables/{table_name}`
+Ejemplo:
+
+```text
+GET /tables/alumnos
+```
+
+Response:
+
+```json
+{
+  "ok": true,
+  "table": {
+    "name": "alumnos",
+    "db_file": "C:/ruta/al/proyecto/runtime/tables/alumnos/alumnos.bin",
+    "struct_format": "i 50s f",
+    "source_path": null,
+    "columns": [
+      {
+        "name": "id",
+        "type_name": "INT",
+        "index_technique": "HASH",
+        "struct_tokens": ["i"],
+        "dimension": 1,
+        "length": null
+      },
+      {
+        "name": "nombre",
+        "type_name": "VARCHAR(50)",
+        "index_technique": null,
+        "struct_tokens": ["50s"],
+        "dimension": 1,
+        "length": 50
+      },
+      {
+        "name": "promedio",
+        "type_name": "FLOAT",
+        "index_technique": "BTREE",
+        "struct_tokens": ["f"],
+        "dimension": 1,
+        "length": null
+      }
+    ],
+    "indexes": ["id", "promedio"],
+    "row_count": 2
+  }
+}
+```
+
+### `POST /query`
+Request:
+
+```json
+{
+  "sql": "CREATE TABLE alumnos (id INT INDEX HASH, nombre VARCHAR(50), promedio FLOAT INDEX BTREE);"
+}
+```
+
+Response:
+
+```json
+{
+  "ok": true,
+  "results": [
+    {
+      "operation": "create_table",
+      "table": "alumnos",
+      "columns": [
+        {
+          "name": "id",
+          "type_name": "INT",
+          "index_technique": "HASH",
+          "struct_tokens": ["i"],
+          "dimension": 1,
+          "length": null
+        },
+        {
+          "name": "nombre",
+          "type_name": "VARCHAR(50)",
+          "index_technique": null,
+          "struct_tokens": ["50s"],
+          "dimension": 1,
+          "length": 50
+        },
+        {
+          "name": "promedio",
+          "type_name": "FLOAT",
+          "index_technique": "BTREE",
+          "struct_tokens": ["f"],
+          "dimension": 1,
+          "length": null
+        }
+      ],
+      "imported_rows": 0
+    }
+  ],
+  "stats": {
+    "execution_ms": 8.4,
+    "disk_reads": null,
+    "disk_writes": null
+  }
+}
+```
+
+### `POST /query` para insertar
+Request:
+
+```json
+{
+  "sql": "INSERT INTO alumnos VALUES (1, 'Ana', 17.5);"
+}
+```
+
+Response:
+
+```json
+{
+  "ok": true,
+  "results": [
+    {
+      "operation": "insert",
+      "table": "alumnos",
+      "db_offset": 28,
+      "row": {
+        "id": 1,
+        "nombre": "Ana",
+        "promedio": 17.5
+      }
+    }
+  ],
+  "stats": {
+    "execution_ms": 3.1,
+    "disk_reads": null,
+    "disk_writes": null
+  }
+}
+```
+
+### `POST /query` para seleccionar
+Request:
+
+```json
+{
+  "sql": "SELECT * FROM alumnos WHERE id = 1;"
+}
+```
+
+Response:
+
+```json
+{
+  "ok": true,
+  "results": [
+    {
+      "operation": "select",
+      "table": "alumnos",
+      "count": 1,
+      "rows": [
+        {
+          "id": 1,
+          "nombre": "Ana",
+          "promedio": 17.5,
+          "_db_offset": 28
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "execution_ms": 1.8,
+    "disk_reads": null,
+    "disk_writes": null
+  }
+}
+```
+
+### `POST /query` para borrar
+Request:
+
+```json
+{
+  "sql": "DELETE FROM alumnos WHERE id = 1;"
+}
+```
+
+Response:
+
+```json
+{
+  "ok": true,
+  "results": [
+    {
+      "operation": "delete",
+      "table": "alumnos",
+      "deleted_count": 1,
+      "rows": [
+        {
+          "id": 1,
+          "nombre": "Ana",
+          "promedio": 17.5,
+          "_db_offset": 28
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "execution_ms": 2.0,
+    "disk_reads": null,
+    "disk_writes": null
+  }
 }
 ```
 
