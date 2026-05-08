@@ -1,9 +1,13 @@
 import sys
 import os
 
-# Al estar dentro de /parser, podemos importar directamente
-from scanner import Scanner
-from token import TokenType
+try:
+    from .scanner import Scanner
+    from .token import TokenType
+except ImportError:
+    # Compatibilidad con la ejecución directa previa.
+    from scanner import Scanner
+    from token import TokenType
 
 def process_file(input_path, output_path):
     try:

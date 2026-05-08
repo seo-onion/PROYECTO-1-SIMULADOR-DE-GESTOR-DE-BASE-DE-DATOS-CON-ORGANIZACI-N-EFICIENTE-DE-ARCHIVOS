@@ -107,7 +107,44 @@ def read_db_header(file_name: str) -> Header_dto:
 	"""
 	return Header_dto(__read_header(file_name))
 
-def init_main_db(file_name:str,format:str):
+def read_record_at(file_name:str, db_offset:int):
+	"""Lee un registro en un offset específico.
+
+	Retorna `(record, deleted)` donde `record` no incluye el tombstone.
+	"""
+	h = Header_dto(__read_header(file_name))
+	rec_fmt = '= ' + h.format + ' ?'
+	with open(file_name, edit) as f:
+		f.seek(db_offset)
+		raw = f.read(h.reg_size)
+		if len(raw) < h.reg_size:
+			raise ValueError("Offset fuera del archivo o registro incompleto")
+		data = struct.unpack(rec_fmt, raw)
+	return data[:-1], bool(data[-1])
+
+def iter_records(file_name:str):
+	"""Itera sobre todos los registros físicos del archivo sin cargarlo completo."""
+	h = Header_dto(__read_header(file_name))
+	rec_fmt = '= ' + h.format + ' ?'
+	with open(file_name, edit) as f:
+		f.seek(h.header_size)
+		for _ in range(h.reg_number):
+			db_offset = f.tell()
+			raw = f.read(h.reg_size)
+			if len(raw) < h.reg_size:
+				break
+			data = struct.unpack(rec_fmt, raw)
+			yield db_offset, data[:-1], bool(data[-1])
+
+def update_index_flags(file_name:str, indexes:str):
+	"""Actualiza la cadena de flags de índices del header."""
+	h = list(__read_header(file_name))
+	if len(indexes) != h[5]:
+		raise ValueError("La cantidad de flags no coincide con el número de atributos")
+	h[6] = indexes
+	__write_header(file_name, tuple(h))
+
+def init_main_db(file_name:str,format:str, verbose:bool=False):
 	if os.path.exists(file_name):
 		raise Exception("no se puede inicializar un file que ya existe")
 
@@ -115,5 +152,6 @@ def init_main_db(file_name:str,format:str):
 	with open(file_name,create) as f:
 		f.write(struct.pack('= ' +__header_str_format(format),*__encode_header(header)))
 
-	Header_dto(__read_header(file_name)).print()
+	if verbose:
+		Header_dto(__read_header(file_name)).print()
 

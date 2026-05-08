@@ -1,28 +1,3 @@
-"""Extendible Hashing Index.
-
-Interfaz idéntica a BPlusTree y SequentialIndex:
-    idx = ExtendibleHash(db_filename, table_format, key_index)
-
-Archivo de índice: db_filename + "hash_index" + str(key_index) + ".bin"
-
-Layout del archivo (offsets fijos):
-  [0  – 11 ] Header     : global_depth (i), num_buckets (i), free_head (i)
-  [12 – 1035] Directorio: MAX_DIR entries × 4 bytes   (2^MAX_DEPTH = 256 slots)
-  [1036 –   ] Buckets    : registros de tamaño fijo
-
-Layout de cada bucket:
-  local_depth (i) | fullness (i) | overflow_ptr (i) | next_free (i)
-  entry_0 … entry_{BUCKET_CAP-1}
-
-Layout de cada entry:
-  key_value (key_size bytes) | db_offset (i) | valid (?)
-
-Complejidades (con buena función de hash):
-  search : O(1)
-  insert : O(1) amortizado
-  delete : O(1)
-"""
-
 import os
 import struct
 from typing import Any, List, Tuple

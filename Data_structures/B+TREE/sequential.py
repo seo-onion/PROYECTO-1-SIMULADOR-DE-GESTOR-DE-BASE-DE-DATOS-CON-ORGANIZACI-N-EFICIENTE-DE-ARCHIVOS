@@ -1,30 +1,3 @@
-"""Índice secuencial ordenado con área auxiliar.
-
-Actúa como índice secundario sobre un archivo principal de BD,
-siguiendo el mismo patrón de interfaz que BPlusTree:
-
-    idx = SequentialIndex(db_filename, table_format, key_index)
-
-Archivo de índice:
-  Nombre  : db_filename + "seq_index" + str(key_index) + ".bin"
-  Cabecera: struct '= i i' → (ordered_count, aux_count)
-  Entradas: key_value | db_offset (4 bytes) | deleted (1 byte)
-            La sección ordenada va primero; el área auxiliar al final.
-
-Integración con Table_file_managment:
-  Para construir el índice a partir de un Header_dto existente:
-      idx.build_from_db(header_dto.header_size, header_dto.reg_number)
-  Usar el carácter 'S' en el string 'indexes' del header para señalar
-  que ese atributo tiene un SequentialIndex.
-
-Complejidades:
-  search:       O(log n + k)            k ≤ k_threshold
-  range_search: O(log n + m)            m = total de coincidencias
-  insert:       O(1) amortizado
-  delete:       O(log n + k)
-  rebuild:      O((n + k) log(n + k))   disparado automáticamente
-"""
-
 import os
 import struct
 from typing import Any, List, Tuple
