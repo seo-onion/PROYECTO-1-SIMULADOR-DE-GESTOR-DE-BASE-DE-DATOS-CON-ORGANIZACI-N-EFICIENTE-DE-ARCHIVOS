@@ -5,7 +5,9 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from a2wsgi import ASGIMiddleware
 
 from engine import Engine
 
@@ -39,6 +41,11 @@ app.add_middleware(
 )
 
 
+@app.get("/")
+async def read_index():
+    return FileResponse(ROOT_DIR.parent / "index.html")
+
+
 @app.get("/health")
 def health() -> dict:
     return {"ok": True, "service": "db-engine-backend"}
@@ -64,6 +71,9 @@ def execute_query(payload: SQLRequest) -> dict:
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+
+# Adaptador para PythonAnywhere (WSGI)
+wsgi_app = ASGIMiddleware(app)
 
 if __name__ == "__main__":
     import uvicorn
