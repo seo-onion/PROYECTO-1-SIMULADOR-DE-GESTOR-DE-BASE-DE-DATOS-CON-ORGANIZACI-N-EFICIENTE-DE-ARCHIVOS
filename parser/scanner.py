@@ -63,7 +63,7 @@ class Scanner:
         self.column = self.current_col
         c = self._advance()
 
-        # --- Identificadores y Palabras Reservadas ---
+        # --- Identificadores y Palabras Reservadas-
         if c.isalpha() or c == '_':
             while self._peek().isalnum() or self._peek() == '_':
                 self._advance()
@@ -73,7 +73,7 @@ class Scanner:
             token_type = self.keywords.get(text.upper(), TokenType.ID)
             return Token(token_type, text, self.line, self.column)
 
-        # --- Números (Soporte para negativos y decimales) ---
+        # Números (Soporte para negativos y decimales)
         elif c.isdigit() or (c == '-' and self._peek().isdigit()):
             while self._peek().isdigit():
                 self._advance()
@@ -87,7 +87,7 @@ class Scanner:
             text = self.input[self.first:self.current]
             return Token(TokenType.NUM, text, self.line, self.column)
 
-        # --- Cadenas (Strings) ---
+        # Strings
         elif c == "'" or c == '"':
             # SQL estándar usa comillas simples para valores, pero soportamos ambas
             quote_type = c
@@ -105,7 +105,7 @@ class Scanner:
             text = self.input[self.first + 1 : self.current - 1]
             return Token(TokenType.STRING, text, self.line, self.column)
 
-        # --- Operadores Relacionales (Símbolos compuestos) ---
+        # Operadores Relacionales (Símbolos compuestos) 
         elif c == '<':
             if self._peek() == '=':
                 self._advance()
