@@ -21,6 +21,68 @@ El proyecto ya no está solo en la etapa de scanner. Actualmente incluye:
 * **AST Tipado (`sql_parser.py`):** Utiliza `dataclasses` de Python (como `SelectCommand`, `CreateTableCommand`) para representar las sentencias. Esto proporciona una estructura inmutable, con tipado fuerte y autocompletado, facilitando la integración con el motor de base de datos.
 * **Parser (`sql_parser.py`):** La clase `SQLParser` consume los tokens y valida la gramática formal definida para el proyecto.
 
+### Gramática Formal (EBNF)
+
+El parser está construido sobre la siguiente gramática formal, diseñada para soportar estrictamente el subconjunto de SQL requerido por el proyecto:
+
+#### Estructura General
+
+```ebnf
+<program>      ::= { <statement> }
+<statement>    ::= ( <create_stmt> | <select_stmt> | <insert_stmt> | <delete_stmt> ) ";"
+```
+
+#### Sentencia CREATE TABLE
+```ebnf
+<create_stmt>  ::= "CREATE" "TABLE" <id> "(" <column_list> ")" [ "FROM" "FILE" <string> ]
+<column_list>  ::= <column_def> { "," <column_def> }
+<column_def>   ::= <id> <type_def> [ "INDEX" <index_tech> ]
+
+<type_def>     ::= <id> { <id> | <num> | "(" | ")" }
+
+<index_tech>   ::= "Sequential" | "Extendible" | "BPlus" | "RTree" | <id>
+```
+
+#### Sentencia SELECT y Consultas espaciales
+```ebnf
+<select_stmt>  ::= "SELECT" "*" "FROM" <id> [ "WHERE" <condition> ]
+
+<condition>    ::= <point_condition> 
+                 | <range_condition> 
+                 | <spatial_condition>
+
+<point_condition>   ::= <id> <operator> <value>
+
+<range_condition>   ::= <id> "BETWEEN" <value> "AND" <value>
+
+<spatial_condition> ::= <id> "IN" "(" "POINT" "(" <num> "," <num> ")" "," <spatial_param> ")"
+
+<spatial_param>     ::= "RADIUS" <num> 
+                      | "K" <num>
+
+<operator>          ::= "=" | "<" | ">" | "<=" | ">="
+```
+
+#### Sentencia INSERT
+```ebnf
+<insert_stmt>  ::= "INSERT" "INTO" <id> "VALUES" "(" <value_list> ")"
+<value_list>   ::= <value> { "," <value> }
+```
+
+#### Sentencia DELETE
+```ebnf
+<delete_stmt>  ::= "DELETE" "FROM" <id> "WHERE" <id> "=" <value>
+```
+
+#### Terminales Generales
+```ebnf
+<id>           ::= ID         /* Cualquier identificador: nombres de tablas, columnas, etc. */
+<num>          ::= NUM        /* Números enteros o decimales (incluyendo negativos) */
+<string>       ::= STRING     /* Cadenas de texto entre comillas */
+<value>        ::= <num> | <string>
+```
+
+
 ### Subconjunto SQL Soportado
 
 > El parser traduce las siguientes sentencias a objetos `Command` específicos:
