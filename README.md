@@ -57,6 +57,7 @@ Para una consulta espacial como:
 `SELECT * FROM locales WHERE posicion IN (POINT (10.5, 20.0), RADIUS 5.0);`
 
 El parser genera el siguiente objeto:
+```python
 SelectCommand(
     table_name='locales',
     condition=RadiusCondition(
@@ -65,6 +66,7 @@ SelectCommand(
         radius=5.0
     )
 )
+```
 
 ## Qué hace `Engine`
 La clase `Engine` centraliza la ejecución de consultas SQL y la coordinación de estructuras. Soporta:
