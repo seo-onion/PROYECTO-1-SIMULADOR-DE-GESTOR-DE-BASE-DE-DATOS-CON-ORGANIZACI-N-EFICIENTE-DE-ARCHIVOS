@@ -65,7 +65,7 @@ class ExtendibleHash:
             # Cabecera: profundidad=1, num_buckets=2, free_head=-1
         f.write(struct.pack(_HDR_FMT, 1, 2, -1))
             # Directorio: entradas 0..127 → b0, entradas 128..255 → b1
-        dir_data = [b0 if i < 128 else b1 for i in range(_DIR_ENTRIES)]
+        dir_data = [b0 if (i & 1) == 0 else b1 for i in range(_DIR_ENTRIES)]
         f.write(struct.pack('= ' + 'i' * _DIR_ENTRIES, *dir_data))
             # Bucket 0: profundidad_local=1, ocupacion=0, overflow=-1, next_free=-1
         f.write(struct.pack(_BUCKET_META_FMT, 1, 0, -1, -1))
