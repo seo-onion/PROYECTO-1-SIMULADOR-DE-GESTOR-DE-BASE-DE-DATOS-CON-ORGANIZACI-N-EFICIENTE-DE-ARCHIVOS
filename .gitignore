@@ -1,10 +1,12 @@
 GEMINI.md
+informe.tex
 
 # Python
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
+
 
 # Archivos binarios generados por los índices y tests
 *.bin
