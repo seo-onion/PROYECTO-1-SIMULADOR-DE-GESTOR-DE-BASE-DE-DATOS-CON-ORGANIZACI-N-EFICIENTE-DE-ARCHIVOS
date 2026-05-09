@@ -125,6 +125,8 @@ class BTreeNode:
 			ptr_index = self.pointers.index(ptr)
 		except ValueError:
 			ptr_index = -1
+		if ptr_index==-1 or v_index==-1:
+			return v_index,ptr_index
 		if ptr_index<self.fullness and self.values[ptr_index]==val:
 			return ptr_index,ptr_index
 		if self.pointers[v_index]==ptr:
@@ -335,7 +337,7 @@ class Btree:
 			current_node = self.__read_node(new_address)
 			current_node.address = new_address
 			path.append(current_node)
-		if val not in current_node.values:
+		if val not in current_node.values and path[len(path)-1].pointers[path[len(path)-1].fullness]!=-1:
 			node=path.pop()
 			address=node.pointers[node.fullness]
 			node=self.__read_node(address)

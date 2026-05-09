@@ -7,6 +7,8 @@
 #
 # f.close()
 #
+from random import randint
+
 from BPlusTree import Btree
 def test_btree():
 	table_format="i 10s f 15s"
@@ -77,23 +79,33 @@ def test_range():
 	for p in range:
 		print(p)
 
+def test_random():
+	table_format = "i 10s f 15s"
+	db_name = "db"
+	b = Btree(db_name, table_format, 0,True)
+	for i in range(-1000,1000,1):
+		b.insert(i,randint(0, 1000))
+		b.insert(i,randint(0, 1000))
+		b.insert(i,randint(0, 1000))
+
+	#print(b.search(-125))
 
 
-
-test_btree()
-test_3()
+# test_btree()
+# test_3()
 # test_range()
-test_4()
+# test_4()
 #test_2()#
-#test_range()
 
 
-
+#test_random()
 # test_range()
 
 
-
-
+table_format = "i 10s f 15s"
+db_name = "db"
+b = Btree(db_name, table_format, 0)
+print(b.range_search(990,1000000))
 
 
 
