@@ -18,7 +18,7 @@ El proyecto ya no está solo en la etapa de scanner. Actualmente incluye:
 
 ### Arquitectura y Componentes
 
-> La implementación sigue un modelo de **Análisis Sintáctico Descendente Recursivo** (Recursive Descent Parsing)[cite: 17]:
+> La implementación sigue un modelo de **Análisis Sintáctico Descendente Recursivo** (Recursive Descent Parsing):
 
 * **Scanner (`scanner.py`):** Realiza el análisis léxico convirtiendo la cadena de entrada en un flujo de tokens (`TokenType`). Maneja correctamente espacios en blanco, comentarios y reconoce números negativos/decimales para coordenadas espaciales.
 * **AST Tipado (`sql_parser.py`):** Utiliza `dataclasses` de Python (como `SelectCommand`, `CreateTableCommand`) para representar las sentencias. Esto proporciona una estructura inmutable, con tipado fuerte y autocompletado, facilitando la integración con el motor de base de datos.
