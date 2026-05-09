@@ -21,7 +21,7 @@ class Scanner:
             "DELETE": TokenType.DELETE, "BETWEEN": TokenType.BETWEEN,
             "AND": TokenType.AND, "IN": TokenType.IN,
             "POINT": TokenType.POINT, "RADIUS": TokenType.RADIUS,
-            "K": TokenType.K
+            "K": TokenType.K, "NULL": TokenType.NULL
         }
 
     def _is_at_end(self) -> bool:
@@ -91,19 +91,29 @@ class Scanner:
         elif c == "'" or c == '"':
             # SQL estándar usa comillas simples para valores, pero soportamos ambas
             quote_type = c
-            while self._peek() != quote_type and not self._is_at_end():
-                if self._peek() == '\n':
+            content = []
+            while not self._is_at_end():
+                if self._peek() == quote_type:
+                    if self._peek_next() == quote_type:
+                        # Escaped quote (e.g., '')
+                        self._advance() # Consumir la primera comilla
+                        content.append(self._advance()) # Consumir y guardar la segunda
+                        continue
+                    else:
+                        # Fin del string
+                        break
+                
+                char = self._advance()
+                if char == '\n':
                     self.line += 1
                     self.current_col = 1
-                self._advance()
+                content.append(char)
             
             if self._is_at_end():
                 return Token(TokenType.ERR, "Unterminated string", self.line, self.column)
             
             self._advance() # Consumir la comilla de cierre
-            # Extraemos sin las comillas
-            text = self.input[self.first + 1 : self.current - 1]
-            return Token(TokenType.STRING, text, self.line, self.column)
+            return Token(TokenType.STRING, "".join(content), self.line, self.column)
 
         # Operadores Relacionales (Símbolos compuestos) 
         elif c == '<':

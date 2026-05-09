@@ -218,6 +218,8 @@ class SQLParser:
         return " ".join(parts)
 
     def _parse_literal(self) -> Any:
+        if self._match(TokenType.NULL):
+            return None
         if self._check(TokenType.STRING):
             return self._advance().text
         if self._check(TokenType.NUM):

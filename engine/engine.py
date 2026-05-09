@@ -478,6 +478,16 @@ class Engine:
         return row
 
     def _normalize_value(self, column: ColumnSchema, value: Any) -> Any:
+        if value is None:
+            if column.is_spatial:
+                return tuple([0.0] * column.dimension)
+            type_name = column.type_name.upper()
+            if type_name in {"INT", "INTEGER", "SERIAL"}:
+                return 0
+            if type_name in {"FLOAT", "REAL", "DOUBLE"}:
+                return 0.0
+            return ""
+
         type_name = column.type_name.upper()
         if column.is_spatial:
             if isinstance(value, str):
