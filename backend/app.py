@@ -52,7 +52,10 @@ def health() -> dict:
 
 @app.get("/tables")
 def list_tables() -> dict:
-    return {"ok": True, "tables": engine.list_tables()}
+    try:
+        return {"ok": True, "tables": engine.list_tables()}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "tables": []}
 
 
 @app.get("/tables/{table_name}")

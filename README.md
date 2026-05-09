@@ -2,15 +2,61 @@
 
 ## 🐳 Ejecución con Docker (Recomendado)
 
-Si tienes Docker instalado, puedes correr todo con un solo comando:
+... (contenido anterior) ...
 
-1. **Construir y levantar el contenedor:**
-   ```bash
-   docker-compose up --build
-   ```
+---
 
-2. **Acceder a la interfaz:**
-   Ve a [http://localhost:8000](http://localhost:8000)
+## 📝 Ejemplo de Query SQL (Dataset Pokemon)
+
+Puedes usar esta consulta para crear una tabla compleja y probar el simulador:
+
+```sql
+CREATE TABLE pokemon_complete_2025 (
+    pokedex_id INT,
+    name VARCHAR(50),
+    genus VARCHAR(50),
+    generation VARCHAR(10),
+    type_1 VARCHAR(20),
+    type_2 VARCHAR(20),
+    num_types INT,
+    hp INT,
+    attack INT,
+    defense INT,
+    sp_attack INT,
+    sp_defense INT,
+    speed INT,
+    base_stat_total INT,
+    height_m FLOAT,
+    weight_kg FLOAT,
+    base_experience INT,
+    ability_1 VARCHAR(50),
+    ability_2 VARCHAR(50),
+    hidden_ability VARCHAR(50),
+    color VARCHAR(20),
+    shape VARCHAR(30),
+    habitat VARCHAR(30),
+    growth_rate VARCHAR(30),
+    egg_groups VARCHAR(50),
+    is_legendary VARCHAR(10),
+    is_mythical VARCHAR(10),
+    is_baby VARCHAR(10),
+    capture_rate INT,
+    base_happiness INT,
+    hatch_counter INT,
+    gender_rate INT,
+    description VARCHAR(255),
+    sprite_url VARCHAR(150),
+    is_dual_type VARCHAR(10),
+    bmi FLOAT,
+    attack_defense_ratio FLOAT,
+    physical_total INT,
+    special_total INT,
+    offensive_total INT,
+    defensive_total INT,
+    gender_distribution VARCHAR(50),
+    stat_tier VARCHAR(50)
+);
+```
 
 ---
 
