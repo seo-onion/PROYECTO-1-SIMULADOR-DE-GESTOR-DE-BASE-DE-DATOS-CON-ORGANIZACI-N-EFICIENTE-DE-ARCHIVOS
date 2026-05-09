@@ -28,8 +28,9 @@ class InsertCommand:
 
 
 @dataclass(slots=True)
-class EqualCondition:
+class SimpleCondition:
     column: str
+    operator: str
     value: Any
 
 
@@ -57,13 +58,13 @@ class KNNCondition:
 @dataclass(slots=True)
 class SelectCommand:
     table_name: str
-    condition: EqualCondition | BetweenCondition | RadiusCondition | KNNCondition
+    condition: SimpleCondition | BetweenCondition | RadiusCondition | KNNCondition
 
 
 @dataclass(slots=True)
 class DeleteCommand:
     table_name: str
-    condition: EqualCondition
+    condition: SimpleCondition
 
 
 Command = CreateTableCommand | InsertCommand | SelectCommand | DeleteCommand
@@ -165,14 +166,15 @@ class SQLParser:
         self._consume(TokenType.WHERE, "Se esperaba WHERE")
         column = self._consume_identifier("Se esperaba la columna en DELETE").text
         self._consume(TokenType.EQ, "DELETE solo soporta condiciones de igualdad")
-        return DeleteCommand(table_name, EqualCondition(column, self._parse_literal()))
+        return DeleteCommand(table_name, SimpleCondition(column, "=" ,self._parse_literal()))
 
     def _parse_condition(
         self,
-    ) -> EqualCondition | BetweenCondition | RadiusCondition | KNNCondition:
+    ) -> SimpleCondition | BetweenCondition | RadiusCondition | KNNCondition:
         column = self._consume_identifier("Se esperaba el nombre de la columna").text
-        if self._match(TokenType.EQ):
-            return EqualCondition(column, self._parse_literal())
+        if self._peek().type in {TokenType.EQ, TokenType.LT, TokenType.GT, TokenType.LE, TokenType.GE}:
+            operator = self._advance().text
+            return SimpleCondition(column, operator, self._parse_literal())
         if self._match(TokenType.BETWEEN):
             low = self._parse_literal()
             self._consume(TokenType.AND, "Se esperaba AND en BETWEEN")
@@ -194,13 +196,26 @@ class SQLParser:
         raise self._error(self._peek(), "Condición WHERE no soportada")
 
     def _parse_type_name(self) -> str:
-        token = self._consume_identifier("Se esperaba el tipo de dato")
-        type_name = token.text
-        if self._match(TokenType.LPAREN):
-            size = self._parse_number_literal()
-            self._consume(TokenType.RPAREN, "Se esperaba ')' en la definición del tipo")
-            type_name = f"{type_name}({size})"
-        return type_name
+        parts = []
+        paren_depth = 0
+        
+        while not self._is_at_end():
+            # Solo podemos detenernos si NO estamos dentro de un paréntesis
+            if paren_depth == 0 and self._peek().type in {TokenType.COMA, TokenType.RPAREN, TokenType.INDEX}:
+                break
+                
+            token = self._advance()
+            parts.append(token.text)
+            
+            if token.type == TokenType.LPAREN:
+                paren_depth += 1
+            elif token.type == TokenType.RPAREN:
+                paren_depth -= 1
+                
+        if not parts:
+            raise self._error(self._peek(), "Se esperaba el tipo de dato")
+            
+        return " ".join(parts)
 
     def _parse_literal(self) -> Any:
         if self._check(TokenType.STRING):
