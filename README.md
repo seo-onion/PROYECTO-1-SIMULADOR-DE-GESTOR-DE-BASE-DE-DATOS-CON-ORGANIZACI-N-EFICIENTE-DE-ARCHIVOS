@@ -427,6 +427,120 @@ Esto genera archivos `*_tokens.txt` en la misma carpeta.
 4. Ejecutar consultas exactas, por rango o espaciales.
 5. Verificar el catálogo con `GET /tables`.
 
+## Flujo de almacenamiento y paginacion
+
+### `PageManager`
+
+`PageManager` es la capa de E/S paginada del proyecto. Evita que el resto del codigo lea o escriba archivos binarios directamente.
+
+Responsabilidades:
+
+- leer paginas completas de 4096 bytes;
+- escribir paginas completas de 4096 bytes;
+- permitir lecturas/escrituras por offset con `read_at()` y `write_at()`;
+- preservar el resto de una pagina cuando solo se modifica una parte;
+- contar paginas leidas y escritas en `disk_reads` y `disk_writes`.
+
+Ejemplo:
+
+```text
+write_at(offset=20, data=32 bytes)
+```
+
+Internamente:
+
+```text
+1. calcula que pagina contiene el offset 20;
+2. lee esa pagina si debe preservar bytes existentes;
+3. reemplaza los 32 bytes dentro de la pagina;
+4. escribe la pagina completa;
+5. incrementa el contador de escrituras.
+```
+
+`PagedFile` es un adaptador pequeno con metodos tipo archivo (`seek`, `read`, `write`, `truncate`). Se usa para que los indices puedan seguir trabajando con una interfaz parecida a `open()`, pero pasando por `PageManager`.
+
+### `Table_file_managment`
+
+`Table_file_managment.py` maneja el archivo fisico principal de cada tabla, tambien llamado heap file.
+
+Este archivo guarda:
+
+```text
+header + registros fisicos
+```
+
+El header contiene:
+
+- tamano del header;
+- numero de registros;
+- tamano de cada registro;
+- formato fisico `struct`;
+- numero de atributos fisicos;
+- flags de indices.
+
+Los registros se guardan al final del archivo. Cada registro termina con un byte `tombstone` para marcar borrado logico.
+
+### Flujo general de la BD
+
+`CREATE TABLE`:
+
+```text
+SQL -> parser -> engine -> init_main_db()
+```
+
+`init_main_db()` crea el archivo vacio, construye el header inicial y lo escribe con `__write_header()`, que usa `PageManager`. El engine guarda el schema logico en `runtime/catalog.json`.
+
+`INSERT`:
+
+```text
+SQL -> parser -> engine -> insert_record() -> indices
+```
+
+`insert_record()` lee el header, calcula el offset fisico del nuevo registro, escribe el registro, actualiza `reg_number` y devuelve el `db_offset`. Luego el engine inserta en cada indice:
+
+```text
+clave -> db_offset
+```
+
+`SELECT`:
+
+```text
+SQL -> parser -> engine -> indice -> heap file
+```
+
+El indice devuelve offsets fisicos. Luego el engine lee las filas completas desde el heap file usando `iter_records()` o lectura por offset.
+
+`DELETE`:
+
+```text
+SQL -> parser -> engine -> indice -> delete_record()
+```
+
+`delete_record()` marca el tombstone del registro en el heap file. Despues el engine elimina la entrada correspondiente de cada indice.
+
+### Como ayuda esto a la paginacion
+
+Antes, varias funciones hacian:
+
+```python
+open(...).read()
+open(...).write()
+```
+
+Ahora el flujo principal pasa por:
+
+```python
+PageManager.read_at()
+PageManager.write_at()
+```
+
+Eso permite defender que:
+
+- la E/S se hace a nivel de paginas fijas;
+- cada operacion puede reportar paginas leidas y escritas;
+- el heap file no se carga completo en memoria;
+- los indices guardan punteros al heap file en vez de duplicar filas completas.
+
 ## Pendiente
 Todavía faltan piezas del enunciado original:
 

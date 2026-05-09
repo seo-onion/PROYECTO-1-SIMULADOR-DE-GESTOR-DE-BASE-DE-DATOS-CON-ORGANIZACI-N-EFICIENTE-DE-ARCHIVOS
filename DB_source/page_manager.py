@@ -9,6 +9,8 @@ DEFAULT_PAGE_SIZE = 4096
 
 @dataclass
 class DiskCounters:
+    """Contadores simples de paginas leidas y escritas."""
+
     reads: int = 0
     writes: int = 0
 
@@ -17,11 +19,13 @@ _GLOBAL_COUNTERS = DiskCounters()
 
 
 def reset_global_counters() -> None:
+    """Reinicia los contadores globales antes de una operacion."""
     _GLOBAL_COUNTERS.reads = 0
     _GLOBAL_COUNTERS.writes = 0
 
 
 def get_global_counters() -> DiskCounters:
+    """Devuelve una copia de los contadores globales actuales."""
     return DiskCounters(_GLOBAL_COUNTERS.reads, _GLOBAL_COUNTERS.writes)
 
 
@@ -34,16 +38,19 @@ class PageManager:
     """
 
     def __init__(self, filename: str, page_size: int = DEFAULT_PAGE_SIZE):
+        """Configura el archivo y el tamano de pagina."""
         self.filename = filename
         self.page_size = page_size
         self.disk_reads = 0
         self.disk_writes = 0
 
     def reset_counters(self) -> None:
+        """Reinicia los contadores de esta instancia."""
         self.disk_reads = 0
         self.disk_writes = 0
 
     def read_page(self, page_id: int) -> bytes:
+        """Lee una pagina completa del archivo."""
         if page_id < 0:
             raise ValueError("page_id no puede ser negativo")
         offset = page_id * self.page_size
@@ -54,6 +61,7 @@ class PageManager:
         return data.ljust(self.page_size, b"\x00")
 
     def write_page(self, page_id: int, data: bytes) -> None:
+        """Escribe una pagina completa del archivo."""
         if page_id < 0:
             raise ValueError("page_id no puede ser negativo")
         if len(data) != self.page_size:
@@ -65,6 +73,7 @@ class PageManager:
         self._count_write()
 
     def read_at(self, offset: int, size: int) -> bytes:
+        """Lee un rango de bytes usando una o mas paginas."""
         if offset < 0 or size < 0:
             raise ValueError("offset y size deben ser no negativos")
         if size == 0:
@@ -88,6 +97,7 @@ class PageManager:
         return b"".join(chunks)
 
     def write_at(self, offset: int, data: bytes) -> None:
+        """Escribe un rango de bytes preservando el resto de la pagina."""
         if offset < 0:
             raise ValueError("offset debe ser no negativo")
         if not data:
@@ -111,6 +121,7 @@ class PageManager:
             written += take
 
     def _read_page_for_write(self, page_id: int) -> bytes:
+        """Obtiene la pagina base antes de modificarla parcialmente."""
         file_size = os.path.getsize(self.filename)
         page_start = page_id * self.page_size
         if page_start >= file_size:
@@ -118,20 +129,24 @@ class PageManager:
         return self.read_page(page_id)
 
     def _ensure_file_exists(self) -> None:
+        """Crea el archivo si todavia no existe."""
         if not os.path.exists(self.filename):
             with open(self.filename, "wb"):
                 pass
 
     def _count_read(self) -> None:
+        """Registra una lectura de pagina."""
         self.disk_reads += 1
         _GLOBAL_COUNTERS.reads += 1
 
     def _count_write(self) -> None:
+        """Registra una escritura de pagina."""
         self.disk_writes += 1
         _GLOBAL_COUNTERS.writes += 1
 
 
 def create_empty_file(filename: str) -> None:
+    """Crea o trunca un archivo vacio."""
     with open(filename, "wb"):
         pass
 
@@ -143,6 +158,7 @@ class PagedFile:
     """
 
     def __init__(self, filename: str):
+        """Abre un adaptador paginado sobre un archivo binario."""
         self.filename = filename
         self.pager = PageManager(filename)
         self._offset = 0
@@ -150,6 +166,7 @@ class PagedFile:
             create_empty_file(filename)
 
     def seek(self, offset: int, whence: int = 0) -> int:
+        """Mueve el cursor logico del adaptador."""
         if whence == 0:
             self._offset = offset
         elif whence == 1:
@@ -163,9 +180,11 @@ class PagedFile:
         return self._offset
 
     def tell(self) -> int:
+        """Devuelve la posicion actual del cursor logico."""
         return self._offset
 
     def read(self, size: int = -1) -> bytes:
+        """Lee desde el cursor logico usando PageManager."""
         if size is None or size < 0:
             size = max(0, os.path.getsize(self.filename) - self._offset)
         data = self.pager.read_at(self._offset, size)
@@ -173,11 +192,13 @@ class PagedFile:
         return data
 
     def write(self, data: bytes) -> int:
+        """Escribe desde el cursor logico usando PageManager."""
         self.pager.write_at(self._offset, data)
         self._offset += len(data)
         return len(data)
 
     def truncate(self, size: int | None = None) -> int:
+        """Trunca el archivo al tamano indicado."""
         if size is None:
             size = self._offset
         with open(self.filename, "r+b") as file:
@@ -185,7 +206,9 @@ class PagedFile:
         return size
 
     def flush(self) -> None:
+        """Mantiene compatibilidad con objetos file."""
         return None
 
     def close(self) -> None:
+        """Mantiene compatibilidad con objetos file."""
         return None
