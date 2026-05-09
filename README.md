@@ -1,8 +1,5 @@
 # PROYECTO 1: Simulador de Gestor de BD (BD2)
 
-
-
-
 ## Estado actual
 El proyecto ya no está solo en la etapa de scanner. Actualmente incluye:
 
@@ -47,7 +44,7 @@ El proyecto ya no está solo en la etapa de scanner. Actualmente incluye:
 #### 4. DELETE FROM
 * Elimina registros basados en una condición de igualdad: `DELETE FROM <tabla> WHERE <col> = <valor>;`.
 
-### ⚙️ Funciones y Lógica Principal
+### Funciones y Lógica Principal
 
 * `parse()`: Punto de entrada que procesa el flujo de tokens hasta encontrar el fin de archivo (`EOF`), devolviendo una lista de comandos ejecutables.
 * `_parse_condition()`: Método central para la resolución de la cláusula `WHERE`. Identifica si se trata de una condición simple (`SimpleCondition`), de rango (`BetweenCondition`) o espacial (`RadiusCondition`/`KNNCondition`).
