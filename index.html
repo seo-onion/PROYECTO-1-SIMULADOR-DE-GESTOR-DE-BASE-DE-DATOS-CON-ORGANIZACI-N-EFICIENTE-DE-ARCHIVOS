@@ -230,7 +230,10 @@
     </div>
 
     <script>
-        const API_URL = 'http://localhost:8000/query';
+        // Detecta automáticamente si el servidor es local o remoto
+        const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:8000/query'
+            : window.location.origin + '/query';
 
         async function executeSQL() {
             const sql = document.getElementById('sqlInput').value.trim();
