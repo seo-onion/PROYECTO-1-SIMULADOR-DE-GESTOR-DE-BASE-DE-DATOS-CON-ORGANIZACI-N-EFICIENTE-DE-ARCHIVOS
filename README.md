@@ -21,7 +21,7 @@ El proyecto ya no está solo en la etapa de scanner. Actualmente incluye:
 * **AST Tipado (`sql_parser.py`):** Utiliza `dataclasses` de Python (como `SelectCommand`, `CreateTableCommand`) para representar las sentencias. Esto proporciona una estructura inmutable, con tipado fuerte y autocompletado, facilitando la integración con el motor de base de datos.
 * **Parser (`sql_parser.py`):** La clase `SQLParser` consume los tokens y valida la gramática formal definida para el proyecto.
 
-### ## 📖 Gramática Formal (EBNF)
+### Gramática Formal (EBNF)
 
 El parser está construido sobre la siguiente gramática formal, diseñada para soportar estrictamente el subconjunto de SQL requerido por el proyecto:
 
