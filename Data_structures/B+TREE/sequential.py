@@ -8,7 +8,7 @@ DB_SOURCE_DIR = Path(__file__).resolve().parents[2] / "DB_source"
 if str(DB_SOURCE_DIR) not in sys.path:
     sys.path.insert(0, str(DB_SOURCE_DIR))
 
-from page_manager import PageManager, PagedFile, create_empty_file
+from page_manager import DEFAULT_PAGE_SIZE, PageManager, PagedFile, create_empty_file
 
 
 class SequentialIndex:
@@ -267,21 +267,13 @@ class SequentialIndex:
         """
         ordered, aux = self._read_header()
 
-        live = []
-        for i in range(ordered + aux):
-            k, off, del_ = self._read_at(i)
-            if not del_:
-                live.append((k, off))
+        def entries():
+            for i in range(ordered + aux):
+                k, off, del_ = self._read_at(i)
+                if not del_:
+                    yield k, off
 
-        live.sort(key=lambda x: x[0])
-
-        self.file.seek(self.HEADER_SIZE)
-        for k, off in live:
-            self.file.write(self._pack(k, off))
-
-        self.file.truncate(self.HEADER_SIZE + len(live) * self.entry_size)
-        self._write_header(len(live), 0)
-        self.file.flush()
+        self._external_rebuild_from_entries(entries())
 
     # ── Construcción desde archivo DB ─────────────────────────────────────────
 
@@ -297,31 +289,24 @@ class SequentialIndex:
         header_size   = header.header_size
         reg_number    = header.reg_number
         disk_rec_size = header.reg_size   # incluye el byte de tombstone
-        live = []
         pager = PageManager(self.db_filename)
         db_offset = header_size
-        for _ in range(reg_number):
-            raw = pager.read_at(db_offset, disk_rec_size)
-            if len(raw) < disk_rec_size:
-                break
-            deleted = struct.unpack('?', raw[-1:])[0]
-            if not deleted:
-                record = struct.unpack(self.full_fmt, raw[:-1])
-                key = self._decode_key(record[self.key_index])
-                live.append((key, db_offset))
-            db_offset += disk_rec_size
 
-        live.sort(key=lambda x: x[0])
+        def entries():
+            nonlocal db_offset
+            for _ in range(reg_number):
+                raw = pager.read_at(db_offset, disk_rec_size)
+                current_offset = db_offset
+                db_offset += disk_rec_size
+                if len(raw) < disk_rec_size:
+                    break
+                deleted = struct.unpack('?', raw[-1:])[0]
+                if not deleted:
+                    record = struct.unpack(self.full_fmt, raw[:-1])
+                    key = self._decode_key(record[self.key_index])
+                    yield key, current_offset
 
-        self.file.seek(self.HEADER_SIZE)
-        for k, off in live:
-            self.file.write(self._pack(k, off))
-
-        self.file.truncate(self.HEADER_SIZE + len(live) * self.entry_size)
-        self._write_header(len(live), 0)
-        self.file.flush()
-
-        return len(live)
+        return self._external_rebuild_from_entries(entries())
 
     # ── Acceso al registro completo en DB ─────────────────────────────────────
 
@@ -329,6 +314,87 @@ class SequentialIndex:
         """Lee el registro completo del archivo DB en la posición dada (bytes)."""
         raw = PageManager(self.db_filename).read_at(db_offset, self.db_rec_size)
         return struct.unpack(self.full_fmt, raw)
+
+    def _external_rebuild_from_entries(self, entries) -> int:
+        run_dir = self.index_filename + ".runs"
+        self._clear_run_dir(run_dir)
+        os.makedirs(run_dir, exist_ok=True)
+        runs: list[tuple[str, int]] = []
+
+        try:
+            chunk: list[tuple[Any, int]] = []
+            capacity = self._run_chunk_capacity()
+            for key, offset in entries:
+                chunk.append((key, offset))
+                if len(chunk) >= capacity:
+                    runs.append(self._write_run(run_dir, len(runs), chunk))
+                    chunk = []
+            if chunk:
+                runs.append(self._write_run(run_dir, len(runs), chunk))
+
+            if not runs:
+                self.file.truncate(self.HEADER_SIZE)
+                self._write_header(0, 0)
+                self.file.flush()
+                return 0
+
+            count = self._merge_runs_into_index(runs)
+            self.file.truncate(self.HEADER_SIZE + count * self.entry_size)
+            self._write_header(count, 0)
+            self.file.flush()
+            return count
+        finally:
+            self._clear_run_dir(run_dir)
+
+    def _run_chunk_capacity(self) -> int:
+        return max(1, (DEFAULT_PAGE_SIZE * 8) // self.entry_size)
+
+    def _write_run(self, run_dir: str, run_number: int, entries: list[tuple[Any, int]]) -> tuple[str, int]:
+        entries.sort(key=lambda item: item[0])
+        run_path = os.path.join(run_dir, f"run_{run_number}.bin")
+        create_empty_file(run_path)
+        run_file = PagedFile(run_path)
+        for key, offset in entries:
+            run_file.write(self._pack(key, offset))
+        run_file.flush()
+        return run_path, len(entries)
+
+    def _merge_runs_into_index(self, runs: list[tuple[str, int]]) -> int:
+        import heapq
+
+        run_files = [PagedFile(path) for path, _ in runs]
+        positions = [0] * len(runs)
+        heap: list[tuple[Any, int, int]] = []
+
+        for run_id, (_, count) in enumerate(runs):
+            if count == 0:
+                continue
+            run_files[run_id].seek(0)
+            key, offset, _ = self._unpack(run_files[run_id].read(self.entry_size))
+            positions[run_id] = 1
+            heapq.heappush(heap, (key, run_id, offset))
+
+        written = 0
+        self.file.seek(self.HEADER_SIZE)
+        while heap:
+            key, run_id, offset = heapq.heappop(heap)
+            self.file.write(self._pack(key, offset))
+            written += 1
+            _, count = runs[run_id]
+            if positions[run_id] < count:
+                key, offset, _ = self._unpack(run_files[run_id].read(self.entry_size))
+                positions[run_id] += 1
+                heapq.heappush(heap, (key, run_id, offset))
+
+        return written
+
+    @staticmethod
+    def _clear_run_dir(run_dir: str) -> None:
+        if not os.path.isdir(run_dir):
+            return
+        for name in os.listdir(run_dir):
+            os.remove(os.path.join(run_dir, name))
+        os.rmdir(run_dir)
 
     # ── Utilidades ────────────────────────────────────────────────────────────
 

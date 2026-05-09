@@ -60,18 +60,19 @@ class ExtendibleHash:
         """Crea el archivo con D=1 y dos buckets vacíos."""
         b0 = _BUCKETS_START
         b1 = _BUCKETS_START + self._bucket_size
-        with open(self.index_filename, 'wb') as f:
+        create_empty_file(self.index_filename)
+        f = PagedFile(self.index_filename)
             # Cabecera: profundidad=1, num_buckets=2, free_head=-1
-            f.write(struct.pack(_HDR_FMT, 1, 2, -1))
+        f.write(struct.pack(_HDR_FMT, 1, 2, -1))
             # Directorio: entradas 0..127 → b0, entradas 128..255 → b1
-            dir_data = [b0 if i < 128 else b1 for i in range(_DIR_ENTRIES)]
-            f.write(struct.pack('= ' + 'i' * _DIR_ENTRIES, *dir_data))
+        dir_data = [b0 if i < 128 else b1 for i in range(_DIR_ENTRIES)]
+        f.write(struct.pack('= ' + 'i' * _DIR_ENTRIES, *dir_data))
             # Bucket 0: profundidad_local=1, ocupacion=0, overflow=-1, next_free=-1
-            f.write(struct.pack(_BUCKET_META_FMT, 1, 0, -1, -1))
-            f.write(b'\x00' * (BUCKET_CAP * self._entry_size))
+        f.write(struct.pack(_BUCKET_META_FMT, 1, 0, -1, -1))
+        f.write(b'\x00' * (BUCKET_CAP * self._entry_size))
             # Bucket 1: idem
-            f.write(struct.pack(_BUCKET_META_FMT, 1, 0, -1, -1))
-            f.write(b'\x00' * (BUCKET_CAP * self._entry_size))
+        f.write(struct.pack(_BUCKET_META_FMT, 1, 0, -1, -1))
+        f.write(b'\x00' * (BUCKET_CAP * self._entry_size))
 
     # ── Header ────────────────────────────────────────────────────────────────
 
