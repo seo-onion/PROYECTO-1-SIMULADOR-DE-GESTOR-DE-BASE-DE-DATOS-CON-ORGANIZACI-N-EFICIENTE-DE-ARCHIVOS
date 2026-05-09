@@ -11,6 +11,8 @@ edit = "rb+"
 
 
 class Header_dto:
+	"""Representa el header fisico de una tabla binaria."""
+
 	def __init__(self, data: tuple[int, int, int, int, str, int, str]):
 		self.header_size = data[0]
 		self.reg_number = data[1]
@@ -31,14 +33,17 @@ class Header_dto:
 
 
 def __header_str_format(format: str):
+	"""Construye el formato struct usado para serializar el header."""
 	return "i " * 4 + str(len(format)) + "s " + "i " + str(len(format.split(" "))) + "s"
 
 
 def __encode_header(h: tuple[int, int, int, int, str, int, str]) -> tuple[int, int, int, int, bytes, int, bytes]:
+	"""Convierte strings del header a bytes para struct.pack."""
 	return h[0], h[1], h[2], h[3], h[4].encode(), h[5], h[6].encode()
 
 
 def __init_header(format: str) -> tuple[int, int, int, int, str, int, str]:
+	"""Crea el header inicial para una tabla vacia."""
 	reg_number = 0
 	reg_size = struct.calcsize("= " + format) + 1
 	format_str_size = len(format)
@@ -49,12 +54,14 @@ def __init_header(format: str) -> tuple[int, int, int, int, str, int, str]:
 
 
 def __write_header(file_name: str, header: tuple[int, int, int, int, str, int, str]):
+	"""Escribe el header en la pagina inicial del archivo de tabla."""
 	reg_format = header[4]
 	data = struct.pack("= " + __header_str_format(reg_format), *__encode_header(header))
 	PageManager(file_name).write_at(0, data)
 
 
 def __read_header(file_name: str) -> tuple[int, int, int, int, str, int, str]:
+	"""Lee y deserializa el header desde el archivo de tabla."""
 	pager = PageManager(file_name)
 	cursor = 0
 
@@ -99,6 +106,7 @@ def delete_record(file_name: str, db_offset: int) -> bool:
 
 
 def read_db_header(file_name: str) -> Header_dto:
+	"""Devuelve el header como DTO para el engine y los indices."""
 	return Header_dto(__read_header(file_name))
 
 
@@ -132,6 +140,7 @@ def iter_records(file_name: str):
 
 
 def update_index_flags(file_name: str, indexes: str):
+	"""Actualiza los flags de indices guardados en el header."""
 	h = list(__read_header(file_name))
 	if len(indexes) != h[5]:
 		raise ValueError("La cantidad de flags no coincide con el numero de atributos")
@@ -140,13 +149,13 @@ def update_index_flags(file_name: str, indexes: str):
 
 
 def init_main_db(file_name: str, format: str, verbose: bool = False):
+	"""Inicializa el archivo fisico de una tabla vacia."""
 	if os.path.exists(file_name):
 		raise Exception("no se puede inicializar un file que ya existe")
 
 	header = __init_header(format)
 	create_empty_file(file_name)
-	data = struct.pack("= " + __header_str_format(format), *__encode_header(header))
-	PageManager(file_name).write_at(0, data)
+	__write_header(file_name, header)
 
 	if verbose:
 		Header_dto(__read_header(file_name)).print()
