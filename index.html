@@ -284,6 +284,7 @@
                 if (data.ok) {
                     renderResults(data);
                     updateStats(data.stats);
+                    loadMetadata(); // Recargar metadatos (por si se creó/borró algo)
                 } else {
                     renderError(data.detail || "Error desconocido");
                 }
@@ -329,6 +330,52 @@
             } else {
                 container.innerHTML = `<p style="color: #007bff;">Operación: ${result.operation} exitosa.</p>`;
             }
+        }
+
+        function drawSpatialData(rows, cols) {
+            const canvas = document.getElementById('spatialCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Buscar columna de coordenadas (tuplas de 2 elementos)
+            const spatialCol = cols.find(c => Array.isArray(rows[0][c]) && rows[0][c].length === 2);
+            if (!spatialCol) return;
+
+            // Escalar puntos al canvas
+            const points = rows.map(r => r[spatialCol]);
+            const margin = 20;
+            const xCoords = points.map(p => p[0]);
+            const yCoords = points.map(p => p[1]);
+            const minX = Math.min(...xCoords), maxX = Math.max(...xCoords);
+            const minY = Math.min(...yCoords), maxY = Math.max(...yCoords);
+
+            ctx.fillStyle = '#00d2ff';
+            points.forEach(p => {
+                const x = margin + ((p[0] - minX) / (maxX - minX || 1)) * (canvas.width - 2 * margin);
+                const y = (canvas.height - margin) - ((p[1] - minY) / (maxY - minY || 1)) * (canvas.height - 2 * margin);
+
+                ctx.beginPath();
+                ctx.arc(x, y, 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = "white";
+                ctx.stroke();
+            });
+        }
+
+        function renderError(msg) {
+            document.getElementById('resultsContent').innerHTML =
+                `<p style="color: #ff4d4d; border: 1px solid #ff4d4d; padding: 10px; border-radius: 10px; background: #fff5f5;">Error: ${msg}</p>`;
+        }
+    </script>
+</body>
+
+</html>esultsContent').innerHTML =
+                `<p style="color: #ff4d4d; border: 1px solid #ff4d4d; padding: 10px; border-radius: 10px; background: #fff5f5;">Error: ${msg}</p>`;
+        }
+    </script>
+</body>
+
+</html>           }
         }
 
         function drawSpatialData(rows, cols) {

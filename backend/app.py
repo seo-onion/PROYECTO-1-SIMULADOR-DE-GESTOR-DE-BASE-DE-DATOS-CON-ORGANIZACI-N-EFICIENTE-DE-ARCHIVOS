@@ -15,7 +15,7 @@ class SQLRequest(BaseModel):
     sql: str
 
 
-ROOT_DIR = Path(__file__).resolve().parents[1] / "runtime"
+ROOT_DIR = Path(__file__).resolve().parent.parent / "runtime"
 engine = Engine(ROOT_DIR)
 
 
