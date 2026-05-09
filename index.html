@@ -320,7 +320,6 @@
                     log(`Execution finished in ${latency}ms (Total).`, 'success');
                 } else {
                     log(`Query Failed: ${d.detail || JSON.stringify(d)}`, 'error');
-                    alert(`ERROR: ${d.detail || 'Check console'}`);
                 }
             } catch (e) {
                 log(`Critical Failure: ${e.message}`, 'error');
