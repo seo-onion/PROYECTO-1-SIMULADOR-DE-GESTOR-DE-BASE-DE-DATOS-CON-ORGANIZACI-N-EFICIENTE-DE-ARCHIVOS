@@ -1,6 +1,14 @@
 import math
 import os
 import struct
+import sys
+from pathlib import Path
+
+DB_SOURCE_DIR = Path(__file__).resolve().parents[2] / "DB_source"
+if str(DB_SOURCE_DIR) not in sys.path:
+	sys.path.insert(0, str(DB_SOURCE_DIR))
+
+from page_manager import PageManager, create_empty_file
 
 create = 'w+b'
 edit = "rb+"
@@ -177,75 +185,67 @@ class Btree:
 			raise Exception("EL archivo del b+tree tenia una key diferente")
 
 	def __swap(self, offset1: int, offset2: int, size: int):
-		with open(self.btree_file_name, edit) as f:
-			f.seek(offset1)
-			v1: bytes = f.read(size)
-			f.seek(offset2)
-			v2: bytes = f.read(size)
-			f.seek(offset1)
-			f.write(v2)
-			f.seek(offset2)
-			f.write(v1)
+		pager = PageManager(self.btree_file_name)
+		v1: bytes = pager.read_at(offset1, size)
+		v2: bytes = pager.read_at(offset2, size)
+		pager.write_at(offset1, v2)
+		pager.write_at(offset2, v1)
 
 	def __write_node(self, node: BTreeNode, address: int):
-		with open(self.btree_file_name, edit) as f:
-			f.seek(address)
-			f.write(struct.pack('= i', node.fullness))
-			for i in range(node.fullness):
-				f.write(struct.pack('= i', node.pointers[i]))
-				if 's' in self.key_type:
-					f.write(struct.pack("= " + self.key_type, node.values[i].encode()))
-				else:
-					f.write(struct.pack("= " + self.key_type, node.values[i]))
-			if node.is_leaf:
-				f.seek(address + self.node_size - (1 + 4))
-
-			f.write(struct.pack("= i", node.pointers[node.fullness]))
-
-			f.seek(address + self.node_size - 1)
-			f.write(struct.pack('= b', node.is_leaf))
+		raw = bytearray(self.node_size)
+		cursor = 0
+		raw[cursor:cursor + 4] = struct.pack('= i', node.fullness)
+		cursor += 4
+		for i in range(node.fullness):
+			raw[cursor:cursor + 4] = struct.pack('= i', node.pointers[i])
+			cursor += 4
+			if 's' in self.key_type:
+				raw[cursor:cursor + self.key_size] = struct.pack("= " + self.key_type, node.values[i].encode())
+			else:
+				raw[cursor:cursor + self.key_size] = struct.pack("= " + self.key_type, node.values[i])
+			cursor += self.key_size
+		if node.is_leaf:
+			cursor = self.node_size - (1 + 4)
+		raw[cursor:cursor + 4] = struct.pack("= i", node.pointers[node.fullness])
+		raw[self.node_size - 1:self.node_size] = struct.pack('= b', node.is_leaf)
+		PageManager(self.btree_file_name).write_at(address, bytes(raw))
 
 	def __read_node(self, address: int):
 		fullness: int
 		values: list = []
 		pointers: list = []
 		is_leaf: bool
-		with open(self.btree_file_name, edit) as f:
-			f.seek(address + self.node_size - 1)
-			is_leaf = struct.unpack('= b', f.read(1))[0]
-			f.seek(address)
-			fullness = struct.unpack("= i", f.read(4))[0]
-			for i in range(fullness):
-				pointers.append(struct.unpack("= i", f.read(4))[0])
-				if 's' in self.key_type:
-					values.append(struct.unpack("= " + self.key_type, f.read(self.key_size))[0].rstrip(b'\x00').decode('utf-8'))
-				else:
-					values.append(struct.unpack("= " + self.key_type, f.read(self.key_size))[0])
-
-			if is_leaf:
-				f.seek(address + self.node_size - (1 + 4))
-
-			pointers.append(struct.unpack("= i", f.read(4))[0])
+		raw = PageManager(self.btree_file_name).read_at(address, self.node_size)
+		is_leaf = struct.unpack('= b', raw[self.node_size - 1:self.node_size])[0]
+		cursor = 0
+		fullness = struct.unpack("= i", raw[cursor:cursor + 4])[0]
+		cursor += 4
+		for i in range(fullness):
+			pointers.append(struct.unpack("= i", raw[cursor:cursor + 4])[0])
+			cursor += 4
+			if 's' in self.key_type:
+				values.append(struct.unpack("= " + self.key_type, raw[cursor:cursor + self.key_size])[0].rstrip(b'\x00').decode('utf-8'))
+			else:
+				values.append(struct.unpack("= " + self.key_type, raw[cursor:cursor + self.key_size])[0])
+			cursor += self.key_size
+		if is_leaf:
+			cursor = self.node_size - (1 + 4)
+		pointers.append(struct.unpack("= i", raw[cursor:cursor + 4])[0])
 
 		return BTreeNode(fullness, values, pointers, is_leaf)
 
 	def __initialize_header(self):
-		with open(self.btree_file_name, create) as f:
-			f.seek(0)
-			f.write(struct.pack('= i', 1))  #cantidad de nodos
-			f.write(struct.pack('= i', struct.calcsize(self.key_type)))  #tamanho en bytes del valor
-			f.write(struct.pack('= i', self.HEADER_SIZE))  # puntero a root
-			f.write(struct.pack('= i',-1)) #free_list
+		create_empty_file(self.btree_file_name)
+		PageManager(self.btree_file_name).write_at(
+			0,
+			struct.pack('= i i i i', 1, struct.calcsize(self.key_type), self.HEADER_SIZE, -1),
+		)
 
 	def __read_header(self):
-		with open(self.btree_file_name, edit) as f:
-			f.seek(0)
-			return struct.unpack('= i i i i', f.read(self.HEADER_SIZE))  #cantidad de nodos, tamanho en bytes del valor,root pointer, free list ptr
+		return struct.unpack('= i i i i', PageManager(self.btree_file_name).read_at(0, self.HEADER_SIZE))  #cantidad de nodos, tamanho en bytes del valor,root pointer, free list ptr
 
 	def __update_node_cuantity(self,amount:int):
-		with open(self.btree_file_name,edit) as f :
-			f.seek(0)
-			f.write(struct.pack('= i', amount))
+		PageManager(self.btree_file_name).write_at(0, struct.pack('= i', amount))
 
 	def __next_free_address(self):
 		nodes,value_size,root_ptr,free_list=self.__read_header()
@@ -257,23 +257,15 @@ class Btree:
 		return free_list
 
 	def __update_free_list(self,ptr:int):
-		with open(self.btree_file_name,edit) as f :
-			f.seek(12)
-			f.write(struct.pack('= i', ptr))
+		PageManager(self.btree_file_name).write_at(12, struct.pack('= i', ptr))
 
 	def __update_root(self,new_root:int):
-		with open(self.btree_file_name,edit) as f :
-			f.seek(8)
-			f.write(struct.pack('= i', new_root))
+		PageManager(self.btree_file_name).write_at(8, struct.pack('= i', new_root))
 
 	def __get_root(self)->int:
-		with open(self.btree_file_name,edit) as f :
-			f.seek(8)
-			return struct.unpack("= i",f.read(4))[0]
+		return struct.unpack("= i", PageManager(self.btree_file_name).read_at(8, 4))[0]
 	def __get_free_list(self):
-		with open(self.btree_file_name,edit) as f :
-			f.seek(12)
-			return struct.unpack("= i",f.read(4))[0]
+		return struct.unpack("= i", PageManager(self.btree_file_name).read_at(12, 4))[0]
 	def __index_to_address(self,index:int):
 		return self.HEADER_SIZE+index*self.node_size  #address
 
@@ -557,3 +549,45 @@ class Btree:
 	def search(self,val):
 		return self.range_search(val,val) #se ve equisde pero asi es la vida
 
+	def build_from_db(self, header) -> int:
+		"""Reconstruye el B+Tree desde el heap file sin cargar la DB en memoria."""
+		if os.path.exists(self.btree_file_name):
+			os.remove(self.btree_file_name)
+
+		self.__initialize_header()
+		base_node = BTreeNode(0, [], [-1], True)
+		self.__write_node(base_node, self.HEADER_SIZE)
+
+		full_fmt = "= " + self.format
+		pager = PageManager(self.db_name)
+		count = 0
+		db_offset = header.header_size
+		for _ in range(header.reg_number):
+			raw = pager.read_at(db_offset, header.reg_size)
+			if len(raw) < header.reg_size:
+				break
+			deleted = struct.unpack("?", raw[-1:])[0]
+			if not deleted:
+				record = struct.unpack(full_fmt, raw[:-1])
+				key = record[self.key_index]
+				if isinstance(key, bytes):
+					key = key.rstrip(b"\x00").decode("utf-8").strip()
+				self.insert(key, db_offset)
+				count += 1
+			db_offset += header.reg_size
+		return count
+
+	def stats(self) -> dict:
+		nodes, value_size, root_ptr, free_list = self.__read_header()
+		return {
+			"index_file": self.btree_file_name,
+			"node_count": nodes,
+			"key_size_b": value_size,
+			"root_ptr": root_ptr,
+			"free_list": free_list,
+			"node_size_b": self.node_size,
+			"key_token": self.key_type,
+		}
+
+	def close(self):
+		return None

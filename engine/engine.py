@@ -18,17 +18,18 @@ from DB_source.Table_file_managment import (
     read_db_header,
     update_index_flags,
 )
+from DB_source.page_manager import get_global_counters, reset_global_counters
 from parser.sql_parser import (
     BetweenCondition,
     ColumnDefinition,
     Command,
     CreateTableCommand,
     DeleteCommand,
-    EqualCondition,
     InsertCommand,
     KNNCondition,
     RadiusCondition,
     SelectCommand,
+    SimpleCondition,
     parse_sql,
 )
 
@@ -128,19 +129,21 @@ class Engine:
 
     def execute(self, sql: str) -> Dict[str, Any]:
         started = time.perf_counter()
+        reset_global_counters()
         commands = parse_sql(sql)
         if not commands:
             raise ValueError("No se encontraron sentencias SQL para ejecutar")
 
         results = [self._execute_command(command) for command in commands]
+        counters = get_global_counters()
         elapsed_ms = round((time.perf_counter() - started) * 1000, 3)
         return {
             "ok": True,
             "results": results,
             "stats": {
                 "execution_ms": elapsed_ms,
-                "disk_reads": None,
-                "disk_writes": None,
+                "disk_reads": counters.reads,
+                "disk_writes": counters.writes,
             },
         }
 
@@ -262,10 +265,17 @@ class Engine:
     def _resolve_select_offsets(
         self,
         runtime: TableRuntime,
-        condition: EqualCondition | BetweenCondition | RadiusCondition | KNNCondition,
+        condition: SimpleCondition | BetweenCondition | RadiusCondition | KNNCondition,
     ) -> List[int]:
-        if isinstance(condition, EqualCondition):
-            return self._resolve_exact_offsets(runtime, condition.column, condition.value)
+        if isinstance(condition, SimpleCondition):
+            if condition.operator == "=":
+                return self._resolve_exact_offsets(runtime, condition.column, condition.value)
+            return self._resolve_comparison_offsets(
+                runtime,
+                condition.column,
+                condition.operator,
+                condition.value,
+            )
         if isinstance(condition, BetweenCondition):
             return self._resolve_range_offsets(runtime, condition.column, condition.low, condition.high)
         if isinstance(condition, RadiusCondition):
@@ -327,6 +337,27 @@ class Engine:
             row = self._record_to_row(runtime, record)
             current = row[column.name]
             if low_value <= current <= high_value:
+                matched_offsets.append(db_offset)
+        return matched_offsets
+
+    def _resolve_comparison_offsets(
+        self,
+        runtime: TableRuntime,
+        column_name: str,
+        operator: str,
+        value: Any,
+    ) -> List[int]:
+        column = runtime.schema.column(column_name)
+        if column.is_spatial:
+            raise ValueError(f"La columna espacial '{column_name}' no soporta operador {operator}")
+
+        normalized_value = self._normalize_value(column, value)
+        matched_offsets: List[int] = []
+        for db_offset, record, deleted in iter_records(runtime.schema.db_file):
+            if deleted:
+                continue
+            current = self._record_to_row(runtime, record)[column.name]
+            if self._compare_values(current, operator, normalized_value):
                 matched_offsets.append(db_offset)
         return matched_offsets
 
@@ -580,15 +611,23 @@ class Engine:
                 header_flags[position] = INDEX_FLAGS[technique]
             if column.name in runtime.indexes:
                 continue
+            index_file = self._index_file_path(runtime.schema, column)
+            should_build = not index_file.exists() and read_db_header(runtime.schema.db_file).reg_number > 0
             runtime.indexes[column.name] = self._instantiate_index(runtime.schema, column)
+            build_from_db = getattr(runtime.indexes[column.name], "build_from_db", None)
+            if should_build and callable(build_from_db):
+                build_from_db(read_db_header(runtime.schema.db_file))
             changed = True
-        update_index_flags(runtime.schema.db_file, "".join(header_flags))
+        current_flags = read_db_header(runtime.schema.db_file).indexes
+        next_flags = "".join(header_flags)
+        if current_flags != next_flags:
+            update_index_flags(runtime.schema.db_file, next_flags)
         if changed:
             self._catalog[runtime.schema.name.lower()] = self._serialize_schema(runtime.schema)
             self._persist_catalog()
 
     def _instantiate_index(self, schema: TableSchema, column: ColumnSchema) -> Any:
-        key_index = schema.column_index(column.name)
+        key_index = self._physical_key_index(schema, column)
         technique = column.normalized_index
         if technique == "SEQUENTIAL":
             return SequentialIndex(schema.db_file, schema.struct_format, key_index)
@@ -597,8 +636,31 @@ class Engine:
         if technique == "BTREE":
             return Btree(schema.db_file, schema.struct_format, key_index)
         if technique == "RTREE":
-            return RTree(schema.db_file, f"{column.dimension}D", key_index, dimension=column.dimension)
+            return RTree(
+                schema.db_file,
+                f"{column.dimension}D",
+                key_index,
+                dimension=column.dimension,
+                table_format=schema.struct_format,
+            )
         raise ValueError(f"Técnica de índice no soportada: {column.index_technique}")
+
+    def _physical_key_index(self, schema: TableSchema, column: ColumnSchema) -> int:
+        runtime = self._runtime_from_schema(schema)
+        return runtime.field_ranges[column.name][0]
+
+    def _index_file_path(self, schema: TableSchema, column: ColumnSchema) -> Path:
+        key_index = self._physical_key_index(schema, column)
+        technique = column.normalized_index
+        if technique == "SEQUENTIAL":
+            return Path(schema.db_file + "seq_index" + str(key_index) + ".bin")
+        if technique == "HASH":
+            return Path(schema.db_file + "hash_index" + str(key_index) + ".bin")
+        if technique == "BTREE":
+            return Path(schema.db_file + "btree_index" + str(key_index) + ".bin")
+        if technique == "RTREE":
+            return Path(schema.db_file + "rtree_index" + str(key_index) + ".bin")
+        raise ValueError(f"TÃ©cnica de Ã­ndice no soportada: {column.index_technique}")
 
     def _get_runtime(self, table_name: str) -> TableRuntime:
         runtime = self._tables.get(table_name.lower())
@@ -624,6 +686,18 @@ class Engine:
     @staticmethod
     def _distance(left: Sequence[float], right: Sequence[float]) -> float:
         return math.sqrt(sum((float(a) - float(b)) ** 2 for a, b in zip(left, right)))
+
+    @staticmethod
+    def _compare_values(left: Any, operator: str, right: Any) -> bool:
+        if operator == "<":
+            return left < right
+        if operator == "<=":
+            return left <= right
+        if operator == ">":
+            return left > right
+        if operator == ">=":
+            return left >= right
+        raise ValueError(f"Operador no soportado: {operator}")
 
     @staticmethod
     def _parse_length_type(type_name: str) -> Optional[int]:

@@ -1,7 +1,15 @@
 import os
 import struct
 import math
+import sys
+from pathlib import Path
 from typing import List, Sequence, Tuple, Optional
+
+DB_SOURCE_DIR = Path(__file__).resolve().parents[2] / "DB_source"
+if str(DB_SOURCE_DIR) not in sys.path:
+    sys.path.insert(0, str(DB_SOURCE_DIR))
+
+from page_manager import PageManager, create_empty_file
 
 create = 'w+b'
 edit   = 'rb+'
@@ -75,6 +83,9 @@ def _bbox_intersects(a: Tuple[float, ...], b: Tuple[float, ...], dim: int) -> bo
             return False
     return True
 
+def _bbox_equals(a: Tuple[float, ...], b: Tuple[float, ...], dim: int) -> bool:
+    return all(math.isclose(float(a[i]), float(b[i]), rel_tol=1e-6, abs_tol=1e-6) for i in range(2 * dim))
+
 def _euclidean(a: Sequence[float], b: Sequence[float]) -> float:
     return math.sqrt(sum((float(a[i]) - float(b[i]))**2 for i in range(len(a))))
 
@@ -120,12 +131,15 @@ class RTree:
         column: str,
         key_index: int,
         dimension: Optional[int] = None,
+        table_format: Optional[str] = None,
         rebuild: bool = False,
     ):
         self.db_name   = filename
         self.column    = column
         self.key_index = key_index
         self.dim       = int(dimension) if dimension else self._parse_dimension(column)
+        self.table_format = table_format
+        self.full_fmt = '= ' + table_format if table_format else None
 
         # Mismo patron de nombre que Btree: filename + "rtree" + "_index" + key_index
         self.rtree_file_name = filename + "rtree" + "_index" + str(key_index) + ".bin"
@@ -161,12 +175,11 @@ class RTree:
     # Header
 
     def __initialize_header(self):
-        with open(self.rtree_file_name, create) as f:
-            f.seek(0)
-            f.write(struct.pack('= i', 1))                # node_count
-            f.write(struct.pack('= i', self.dim))          # dim
-            f.write(struct.pack('= i', self.HEADER_SIZE))  # root_ptr
-            f.write(struct.pack('= i', -1))                # free_list
+        create_empty_file(self.rtree_file_name)
+        PageManager(self.rtree_file_name).write_at(
+            0,
+            struct.pack('= i i i i', 1, self.dim, self.HEADER_SIZE, -1),
+        )
 
     def __check_header(self):
         _, dim, _, _ = self.__read_header()
@@ -176,35 +189,23 @@ class RTree:
             )
 
     def __read_header(self):
-        with open(self.rtree_file_name, edit) as f:
-            f.seek(0)
-            return struct.unpack('= i i i i', f.read(self.HEADER_SIZE))
+        return struct.unpack('= i i i i', PageManager(self.rtree_file_name).read_at(0, self.HEADER_SIZE))
         # retorna: node_count, dim, root_ptr, free_list
 
     def __get_root(self) -> int:
-        with open(self.rtree_file_name, edit) as f:
-            f.seek(8)
-            return struct.unpack('= i', f.read(4))[0]
+        return struct.unpack('= i', PageManager(self.rtree_file_name).read_at(8, 4))[0]
 
     def __update_root(self, ptr: int):
-        with open(self.rtree_file_name, edit) as f:
-            f.seek(8)
-            f.write(struct.pack('= i', ptr))
+        PageManager(self.rtree_file_name).write_at(8, struct.pack('= i', ptr))
 
     def __get_free_list(self) -> int:
-        with open(self.rtree_file_name, edit) as f:
-            f.seek(12)
-            return struct.unpack('= i', f.read(4))[0]
+        return struct.unpack('= i', PageManager(self.rtree_file_name).read_at(12, 4))[0]
 
     def __update_free_list(self, ptr: int):
-        with open(self.rtree_file_name, edit) as f:
-            f.seek(12)
-            f.write(struct.pack('= i', ptr))
+        PageManager(self.rtree_file_name).write_at(12, struct.pack('= i', ptr))
 
     def __update_node_count(self, count: int):
-        with open(self.rtree_file_name, edit) as f:
-            f.seek(0)
-            f.write(struct.pack('= i', count))
+        PageManager(self.rtree_file_name).write_at(0, struct.pack('= i', count))
 
     def __index_to_address(self, index: int) -> int:
         return self.HEADER_SIZE + index * self.node_size
@@ -223,38 +224,43 @@ class RTree:
     # Serializacion de nodos
 
     def __write_node(self, node: RTreeNode, address: int):
-        with open(self.rtree_file_name, edit) as f:
-            f.seek(address)
-            f.write(struct.pack('= i', node.fullness))
-            f.write(struct.pack('= b', int(node.is_leaf)))
-            f.write(b'\x00' * 3)   # padding de alineacion
-
-            for i in range(M):
-                if i < node.fullness:
-                    bbox = node.bboxes[i]
-                    ptr  = node.pointers[i]
-                else:
-                    bbox = (0.0,) * (2 * self.dim)
-                    ptr  = -1
-                f.write(struct.pack(self._float_fmt, *bbox))
-                f.write(struct.pack('= i', ptr))
+        raw = bytearray(self.node_size)
+        cursor = 0
+        raw[cursor:cursor + 4] = struct.pack('= i', node.fullness)
+        cursor += 4
+        raw[cursor:cursor + 1] = struct.pack('= b', int(node.is_leaf))
+        cursor += 4
+        for i in range(M):
+            if i < node.fullness:
+                bbox = node.bboxes[i]
+                ptr = node.pointers[i]
+            else:
+                bbox = (0.0,) * (2 * self.dim)
+                ptr = -1
+            raw[cursor:cursor + self._float_size] = struct.pack(self._float_fmt, *bbox)
+            cursor += self._float_size
+            raw[cursor:cursor + 4] = struct.pack('= i', ptr)
+            cursor += 4
+        PageManager(self.rtree_file_name).write_at(address, bytes(raw))
 
     def __read_node(self, address: int) -> RTreeNode:
-        with open(self.rtree_file_name, edit) as f:
-            f.seek(address)
-            fullness = struct.unpack('= i', f.read(4))[0]
-            is_leaf  = bool(struct.unpack('= b', f.read(1))[0])
-            f.read(3)   # padding
+        raw = PageManager(self.rtree_file_name).read_at(address, self.node_size)
+        cursor = 0
+        fullness = struct.unpack('= i', raw[cursor:cursor + 4])[0]
+        cursor += 4
+        is_leaf = bool(struct.unpack('= b', raw[cursor:cursor + 1])[0])
+        cursor += 4
 
-            bboxes   = []
-            pointers = []
-            for i in range(M):
-                raw  = f.read(self._float_size)
-                bbox = struct.unpack(self._float_fmt, raw)
-                ptr  = struct.unpack('= i', f.read(4))[0]
-                if i < fullness:
-                    bboxes.append(bbox)
-                    pointers.append(ptr)
+        bboxes = []
+        pointers = []
+        for i in range(M):
+            bbox = struct.unpack(self._float_fmt, raw[cursor:cursor + self._float_size])
+            cursor += self._float_size
+            ptr = struct.unpack('= i', raw[cursor:cursor + 4])[0]
+            cursor += 4
+            if i < fullness:
+                bboxes.append(bbox)
+                pointers.append(ptr)
 
         node = RTreeNode(self.dim, fullness, bboxes, pointers, is_leaf)
         node.address = address
@@ -449,7 +455,7 @@ class RTree:
                 continue
             if node.is_leaf:
                 if exact:
-                    if node.bboxes[i] == query_bbox:
+                    if _bbox_equals(node.bboxes[i], query_bbox, self.dim):
                         result.append(node.pointers[i])
                 else:
                     result.append(node.pointers[i])
@@ -542,3 +548,44 @@ class RTree:
                     self.__write_node(node, node_addr)
                     return True
             return False
+
+    def build_from_db(self, header) -> int:
+        if not self.full_fmt:
+            raise ValueError("RTree.build_from_db requiere table_format en el constructor")
+
+        if os.path.exists(self.rtree_file_name):
+            os.remove(self.rtree_file_name)
+        self.__initialize_header()
+        root = RTreeNode(self.dim, 0, [], [], True)
+        self.__write_node(root, self.HEADER_SIZE)
+
+        count = 0
+        pager = PageManager(self.db_name)
+        db_offset = header.header_size
+        for _ in range(header.reg_number):
+            raw = pager.read_at(db_offset, header.reg_size)
+            if len(raw) < header.reg_size:
+                break
+            deleted = struct.unpack('?', raw[-1:])[0]
+            if not deleted:
+                record = struct.unpack(self.full_fmt, raw[:-1])
+                point = tuple(float(record[self.key_index + i]) for i in range(self.dim))
+                self.insert(point, db_offset)
+                count += 1
+            db_offset += header.reg_size
+        return count
+
+    def stats(self) -> dict:
+        node_count, dim, root_ptr, free_list = self.__read_header()
+        return {
+            'index_file': self.rtree_file_name,
+            'node_count': node_count,
+            'dimension': dim,
+            'root_ptr': root_ptr,
+            'free_list': free_list,
+            'key_index': self.key_index,
+            'node_size_b': self.node_size,
+        }
+
+    def close(self):
+        return None

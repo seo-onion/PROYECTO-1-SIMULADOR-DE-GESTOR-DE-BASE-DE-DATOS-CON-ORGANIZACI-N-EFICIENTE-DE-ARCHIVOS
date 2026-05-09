@@ -1,6 +1,14 @@
 import os
 import struct
+import sys
+from pathlib import Path
 from typing import Any, List, Tuple
+
+DB_SOURCE_DIR = Path(__file__).resolve().parents[2] / "DB_source"
+if str(DB_SOURCE_DIR) not in sys.path:
+    sys.path.insert(0, str(DB_SOURCE_DIR))
+
+from page_manager import PageManager, PagedFile, create_empty_file
 
 
 class SequentialIndex:
@@ -41,10 +49,10 @@ class SequentialIndex:
         self.index_filename = db_filename + 'seq_index' + str(key_index) + '.bin'
 
         if not os.path.exists(self.index_filename):
-            with open(self.index_filename, 'wb') as f:
-                f.write(struct.pack(self.HEADER_FORMAT, 0, 0))
+            create_empty_file(self.index_filename)
+            PageManager(self.index_filename).write_at(0, struct.pack(self.HEADER_FORMAT, 0, 0))
 
-        self.file = open(self.index_filename, 'r+b')
+        self.file = PagedFile(self.index_filename)
 
     # ── Cabecera ─────────────────────────────────────────────────────────────
 
@@ -290,19 +298,18 @@ class SequentialIndex:
         reg_number    = header.reg_number
         disk_rec_size = header.reg_size   # incluye el byte de tombstone
         live = []
-        with open(self.db_filename, 'rb') as f:
-            f.seek(header_size)
-            for _ in range(reg_number):
-                db_offset = f.tell()
-                raw = f.read(disk_rec_size)
-                if len(raw) < disk_rec_size:
-                    break
-                deleted = struct.unpack('?', raw[-1:])[0]
-                if deleted:
-                    continue
+        pager = PageManager(self.db_filename)
+        db_offset = header_size
+        for _ in range(reg_number):
+            raw = pager.read_at(db_offset, disk_rec_size)
+            if len(raw) < disk_rec_size:
+                break
+            deleted = struct.unpack('?', raw[-1:])[0]
+            if not deleted:
                 record = struct.unpack(self.full_fmt, raw[:-1])
                 key = self._decode_key(record[self.key_index])
                 live.append((key, db_offset))
+            db_offset += disk_rec_size
 
         live.sort(key=lambda x: x[0])
 
@@ -320,9 +327,7 @@ class SequentialIndex:
 
     def read_record(self, db_offset: int) -> tuple:
         """Lee el registro completo del archivo DB en la posición dada (bytes)."""
-        with open(self.db_filename, 'rb') as f:
-            f.seek(db_offset)
-            raw = f.read(self.db_rec_size)
+        raw = PageManager(self.db_filename).read_at(db_offset, self.db_rec_size)
         return struct.unpack(self.full_fmt, raw)
 
     # ── Utilidades ────────────────────────────────────────────────────────────

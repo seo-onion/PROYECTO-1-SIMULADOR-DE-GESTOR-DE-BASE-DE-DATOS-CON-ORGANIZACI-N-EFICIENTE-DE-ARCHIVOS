@@ -1,6 +1,14 @@
 import os
 import struct
+import sys
+from pathlib import Path
 from typing import Any, List, Tuple
+
+DB_SOURCE_DIR = Path(__file__).resolve().parents[2] / "DB_source"
+if str(DB_SOURCE_DIR) not in sys.path:
+    sys.path.insert(0, str(DB_SOURCE_DIR))
+
+from page_manager import PageManager, PagedFile, create_empty_file
 
 MAX_DEPTH  = 8        # profundidad máxima global → 256 entradas en directorio
 BUCKET_CAP = 4        # entradas por bucket
@@ -44,7 +52,7 @@ class ExtendibleHash:
 
         if not os.path.exists(self.index_filename):
             self._initialize()
-        self.file = open(self.index_filename, 'r+b')
+        self.file = PagedFile(self.index_filename)
 
     # ── Inicialización ────────────────────────────────────────────────────────
 
@@ -53,12 +61,12 @@ class ExtendibleHash:
         b0 = _BUCKETS_START
         b1 = _BUCKETS_START + self._bucket_size
         with open(self.index_filename, 'wb') as f:
-            # Header: depth=1, num_buckets=2, free_head=-1
+            # Cabecera: profundidad=1, num_buckets=2, free_head=-1
             f.write(struct.pack(_HDR_FMT, 1, 2, -1))
             # Directorio: entradas 0..127 → b0, entradas 128..255 → b1
             dir_data = [b0 if i < 128 else b1 for i in range(_DIR_ENTRIES)]
             f.write(struct.pack('= ' + 'i' * _DIR_ENTRIES, *dir_data))
-            # Bucket 0: local_depth=1, fullness=0, overflow=-1, next_free=-1
+            # Bucket 0: profundidad_local=1, ocupacion=0, overflow=-1, next_free=-1
             f.write(struct.pack(_BUCKET_META_FMT, 1, 0, -1, -1))
             f.write(b'\x00' * (BUCKET_CAP * self._entry_size))
             # Bucket 1: idem
@@ -405,29 +413,27 @@ class ExtendibleHash:
         reg_number    = header.reg_number
         disk_rec_size = header.reg_size   # incluye el byte de tombstone
         count = 0
-        with open(self.db_filename, 'rb') as f:
-            f.seek(header_size)
-            for _ in range(reg_number):
-                db_off = f.tell()
-                raw    = f.read(disk_rec_size)
-                if len(raw) < disk_rec_size:
-                    break
-                deleted = struct.unpack('?', raw[-1:])[0]
-                if deleted:
-                    continue
+        pager = PageManager(self.db_filename)
+        db_off = header_size
+        for _ in range(reg_number):
+            raw = pager.read_at(db_off, disk_rec_size)
+            if len(raw) < disk_rec_size:
+                break
+            deleted = struct.unpack('?', raw[-1:])[0]
+            if not deleted:
                 record = struct.unpack(self.full_fmt, raw[:-1])
-                key    = self._decode_key(record[self.key_index])
+                key = self._decode_key(record[self.key_index])
                 self.insert(key, db_off)
                 count += 1
+            db_off += disk_rec_size
         return count
 
     # ── Acceso al registro completo ───────────────────────────────────────────
 
     def read_record(self, db_offset: int) -> tuple:
         """Lee el registro completo del archivo DB en la posición dada."""
-        with open(self.db_filename, 'rb') as f:
-            f.seek(db_offset)
-            return struct.unpack(self.full_fmt, f.read(self.db_rec_size))
+        raw = PageManager(self.db_filename).read_at(db_offset, self.db_rec_size)
+        return struct.unpack(self.full_fmt, raw)
 
     # ── Utilidades ────────────────────────────────────────────────────────────
 
