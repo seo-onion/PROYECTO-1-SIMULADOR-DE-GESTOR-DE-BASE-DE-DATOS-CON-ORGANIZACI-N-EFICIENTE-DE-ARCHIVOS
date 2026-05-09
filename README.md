@@ -1,5 +1,31 @@
 # PROYECTO 1: Simulador de Gestor de BD (BD2)
 
+## 🚀 Guía de Ejecución Local
+
+Para correr el proyecto en tu máquina, sigue estos pasos:
+
+1. **Crear y activar el entorno virtual:**
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+2. **Instalar dependencias:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Ejecutar el servidor:**
+   ```bash
+   export PYTHONPATH=$PWD
+   python3 backend/app.py
+   ```
+
+4. **Acceder a la interfaz:**
+   Abre tu navegador en [http://127.0.0.1:8000](http://127.0.0.1:8000)
+
+---
+
 ## Estado actual
 El proyecto ya no está solo en la etapa de scanner. Actualmente incluye:
 

@@ -1,0 +1,50 @@
+{
+  "usuarios": {
+    "name": "usuarios",
+    "db_file": "/home/seodos/Documentos/BD2/proyecto1/runtime/tables/usuarios/usuarios.bin",
+    "struct_format": "50s 50s 100s i",
+    "source_path": null,
+    "columns": [
+      {
+        "name": "id",
+        "type_name": "VARCHAR ( 50 )",
+        "index_technique": null,
+        "struct_tokens": [
+          "50s"
+        ],
+        "dimension": 1,
+        "length": 50
+      },
+      {
+        "name": "nombre",
+        "type_name": "VARCHAR ( 50 ) NOT NULL",
+        "index_technique": null,
+        "struct_tokens": [
+          "50s"
+        ],
+        "dimension": 1,
+        "length": 50
+      },
+      {
+        "name": "email",
+        "type_name": "VARCHAR ( 100 ) UNIQUE",
+        "index_technique": null,
+        "struct_tokens": [
+          "100s"
+        ],
+        "dimension": 1,
+        "length": 100
+      },
+      {
+        "name": "fecha_registro",
+        "type_name": "INT",
+        "index_technique": null,
+        "struct_tokens": [
+          "i"
+        ],
+        "dimension": 1,
+        "length": null
+      }
+    ]
+  }
+}
