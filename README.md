@@ -1,28 +1,16 @@
 # PROYECTO 1: Simulador de Gestor de BD (BD2)
 
-## 🚀 Guía de Ejecución Local
+## 🐳 Ejecución con Docker (Recomendado)
 
-Para correr el proyecto en tu máquina, sigue estos pasos:
+Si tienes Docker instalado, puedes correr todo con un solo comando:
 
-1. **Crear y activar el entorno virtual:**
+1. **Construir y levantar el contenedor:**
    ```bash
-   python3 -m venv venv
-   source venv/bin/activate
+   docker-compose up --build
    ```
 
-2. **Instalar dependencias:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Ejecutar el servidor:**
-   ```bash
-   export PYTHONPATH=$PWD
-   python3 backend/app.py
-   ```
-
-4. **Acceder a la interfaz:**
-   Abre tu navegador en [http://127.0.0.1:8000](http://127.0.0.1:8000)
+2. **Acceder a la interfaz:**
+   Ve a [http://localhost:8000](http://localhost:8000)
 
 ---
 
