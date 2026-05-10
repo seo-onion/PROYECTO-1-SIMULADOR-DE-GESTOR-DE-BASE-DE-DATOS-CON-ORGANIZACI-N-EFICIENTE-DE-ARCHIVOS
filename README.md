@@ -60,30 +60,118 @@ CREATE TABLE pokemon_complete_2025 (
 
 ---
 
+## 🔍 Guía de Consultas SQL Soportadas
+
+Tu motor de base de datos soporta un subconjunto específico de SQL diseñado para
+probar estructuras de indexación en disco.
+
+### 1. Definición de Tablas (DDL)
+
+Crea tablas definiendo tipos de datos e índices por columna.
+
+```sql
+-- Sintaxis: columna TIPO [INDEX técnica]
+CREATE TABLE usuarios (
+    id INT INDEX B+TREE,          -- Índice B+ para rangos y exactos
+    nombre VARCHAR(50) INDEX HASH, -- Índice Hash para búsquedas exactas
+    edad INT,
+    pos POINT(2D) INDEX RTREE      -- Índice Espacial obligatorio para R-Tree
+);
+```
+
+- **Técnicas:** `B+TREE`, `HASH`, `SEQUENTIAL`, `RTREE`.
+- **Tipos:** `INT`, `FLOAT`, `VARCHAR(n)`, `POINT(nD)`.
+
+### 2. Inserción de Datos (DML)
+
+```sql
+-- Los strings usan comillas simples. Soporta 'null'.
+INSERT INTO usuarios VALUES (1, 'Sebastian', 22, POINT(10.5, 20.0));
+INSERT INTO usuarios VALUES (2, 'Maria', null, POINT(15.0, 30.2));
+```
+
+### 3. Consultas (SELECT)
+
+El motor utiliza índices automáticamente si están disponibles en la columna del
+`WHERE`.
+
+#### Búsquedas Básicas
+
+```sql
+SELECT * FROM usuarios WHERE id = 1;
+SELECT * FROM usuarios WHERE edad > 18; -- Soporta >, <, >=, <=
+```
+
+#### Búsqueda por Rango (B+Tree / Sequential)
+
+```sql
+SELECT * FROM usuarios WHERE id BETWEEN 10 AND 50;
+```
+
+#### Consultas Espaciales (R-Tree)
+
+**Búsqueda por Radio:** Encuentra puntos dentro de un círculo.
+
+```sql
+-- POINT(x, y), RADIUS radio
+SELECT * FROM usuarios WHERE pos IN (POINT(10, 20), RADIUS 5.5);
+```
+
+**Búsqueda de Vecinos Cercanos (KNN):** Encuentra los K puntos más próximos.
+
+```sql
+-- POINT(x, y), K cantidad
+SELECT * FROM usuarios WHERE pos IN (POINT(10, 20), K 5);
+```
+
+### 4. Eliminación (DELETE)
+
+```sql
+-- Requiere una condición de igualdad
+DELETE FROM usuarios WHERE id = 1;
+```
+
+---
+
 ## Estado actual
+
 El proyecto ya no está solo en la etapa de scanner. Actualmente incluye:
 
 - `parser/`: scanner y parser del subconjunto SQL del proyecto.
 - `DB_source/`: manejo del archivo principal de la tabla en binario.
-- `Data_structures/B+TREE/`: índices persistentes `Sequential`, `Extendible Hash`, `B+Tree` y `RTree`.
+- `Data_structures/B+TREE/`: índices persistentes `Sequential`,
+  `Extendible Hash`, `B+Tree` y `RTree`.
 - `engine/`: clase `Engine` que conecta parser, heap file e índices.
 - `backend/`: API HTTP en FastAPI para futuras conexiones con frontend.
 
 ## Analizador Sintáctico (SQL Parser)
 
-> El módulo del Parser es el componente encargado de recibir las consultas en texto plano desde el Frontend, realizar el análisis léxico y sintáctico, y generar un Árbol de Sintaxis Abstracta (AST) tipado. Este AST es el que el Motor de Base de Datos procesa para ejecutar operaciones sobre las estructuras de indexación (B+ Tree, R-Tree, etc.)
+> El módulo del Parser es el componente encargado de recibir las consultas en
+> texto plano desde el Frontend, realizar el análisis léxico y sintáctico, y
+> generar un Árbol de Sintaxis Abstracta (AST) tipado. Este AST es el que el
+> Motor de Base de Datos procesa para ejecutar operaciones sobre las estructuras
+> de indexación (B+ Tree, R-Tree, etc.)
 
 ### Arquitectura y Componentes
 
-> La implementación sigue un modelo de **Análisis Sintáctico Descendente Recursivo** (Recursive Descent Parsing):
+> La implementación sigue un modelo de **Análisis Sintáctico Descendente
+> Recursivo** (Recursive Descent Parsing):
 
-* **Scanner (`scanner.py`):** Realiza el análisis léxico convirtiendo la cadena de entrada en un flujo de tokens (`TokenType`). Maneja correctamente espacios en blanco, comentarios y reconoce números negativos/decimales para coordenadas espaciales.
-* **AST Tipado (`sql_parser.py`):** Utiliza `dataclasses` de Python (como `SelectCommand`, `CreateTableCommand`) para representar las sentencias. Esto proporciona una estructura inmutable, con tipado fuerte y autocompletado, facilitando la integración con el motor de base de datos.
-* **Parser (`sql_parser.py`):** La clase `SQLParser` consume los tokens y valida la gramática formal definida para el proyecto.
+- **Scanner (`scanner.py`):** Realiza el análisis léxico convirtiendo la cadena
+  de entrada en un flujo de tokens (`TokenType`). Maneja correctamente espacios
+  en blanco, comentarios y reconoce números negativos/decimales para coordenadas
+  espaciales.
+- **AST Tipado (`sql_parser.py`):** Utiliza `dataclasses` de Python (como
+  `SelectCommand`, `CreateTableCommand`) para representar las sentencias. Esto
+  proporciona una estructura inmutable, con tipado fuerte y autocompletado,
+  facilitando la integración con el motor de base de datos.
+- **Parser (`sql_parser.py`):** La clase `SQLParser` consume los tokens y valida
+  la gramática formal definida para el proyecto.
 
 ### Gramática Formal (EBNF)
 
-El parser está construido sobre la siguiente gramática formal, diseñada para soportar estrictamente el subconjunto de SQL requerido por el proyecto:
+El parser está construido sobre la siguiente gramática formal, diseñada para
+soportar estrictamente el subconjunto de SQL requerido por el proyecto:
 
 #### Estructura General
 
@@ -93,6 +181,7 @@ El parser está construido sobre la siguiente gramática formal, diseñada para 
 ```
 
 #### Sentencia CREATE TABLE
+
 ```ebnf
 <create_stmt>  ::= "CREATE" "TABLE" <id> "(" <column_list> ")" [ "FROM" "FILE" <string> ]
 <column_list>  ::= <column_def> { "," <column_def> }
@@ -104,6 +193,7 @@ El parser está construido sobre la siguiente gramática formal, diseñada para 
 ```
 
 #### Sentencia SELECT y Consultas espaciales
+
 ```ebnf
 <select_stmt>  ::= "SELECT" "*" "FROM" <id> [ "WHERE" <condition> ]
 
@@ -124,17 +214,20 @@ El parser está construido sobre la siguiente gramática formal, diseñada para 
 ```
 
 #### Sentencia INSERT
+
 ```ebnf
 <insert_stmt>  ::= "INSERT" "INTO" <id> "VALUES" "(" <value_list> ")"
 <value_list>   ::= <value> { "," <value> }
 ```
 
 #### Sentencia DELETE
+
 ```ebnf
 <delete_stmt>  ::= "DELETE" "FROM" <id> "WHERE" <id> "=" <value>
 ```
 
 #### Terminales Generales
+
 ```ebnf
 <id>           ::= ID         /* Cualquier identificador: nombres de tablas, columnas, etc. */
 <num>          ::= NUM        /* Números enteros o decimales (incluyendo negativos) */
@@ -142,36 +235,50 @@ El parser está construido sobre la siguiente gramática formal, diseñada para 
 <value>        ::= <num> | <string>
 ```
 
-
 ### Subconjunto SQL Soportado
 
 > El parser traduce las siguientes sentencias a objetos `Command` específicos:
 
 #### 1. CREATE TABLE
-* Define tablas con múltiples columnas y tipos de datos variables.
-* Soporta tipos complejos como `VARCHAR(50) NOT NULL` mediante un sistema de seguimiento de profundidad de paréntesis.
-* Permite especificar la técnica de indexación: `INDEX <técnica>` (ej. BPlus, RTree, Sequential, Extendible).
-* Soporta carga masiva de datos: `FROM FILE <path>`.
+
+- Define tablas con múltiples columnas y tipos de datos variables.
+- Soporta tipos complejos como `VARCHAR(50) NOT NULL` mediante un sistema de
+  seguimiento de profundidad de paréntesis.
+- Permite especificar la técnica de indexación: `INDEX <técnica>` (ej. BPlus,
+  RTree, Sequential, Extendible).
+- Soporta carga masiva de datos: `FROM FILE <path>`.
 
 #### 2. SELECT
-* **Búsquedas Simples:** Soporta operadores de comparación `=`, `<`, `>`, `<=`, `>=` en la cláusula `WHERE`.
-* **Búsquedas por Rango:** Implementa la sintaxis `BETWEEN <v1> AND <v2>`.
-* **Consultas Espaciales (R-Tree):**
-    * Búsqueda por radio: `IN (POINT (<x>, <y>), RADIUS <r>)`.
-    * Búsqueda de K vecinos: `IN (POINT (<x>, <y>), K <k>)`.
+
+- **Búsquedas Simples:** Soporta operadores de comparación `=`, `<`, `>`, `<=`,
+  `>=` en la cláusula `WHERE`.
+- **Búsquedas por Rango:** Implementa la sintaxis `BETWEEN <v1> AND <v2>`.
+- **Consultas Espaciales (R-Tree):**
+  - Búsqueda por radio: `IN (POINT (<x>, <y>), RADIUS <r>)`.
+  - Búsqueda de K vecinos: `IN (POINT (<x>, <y>), K <k>)`.
 
 #### 3. INSERT INTO
-* Inserta nuevos registros especificando la tabla y la lista de valores: `INSERT INTO <tabla> VALUES (...);`.
+
+- Inserta nuevos registros especificando la tabla y la lista de valores:
+  `INSERT INTO <tabla> VALUES (...);`.
 
 #### 4. DELETE FROM
-* Elimina registros basados en una condición de igualdad: `DELETE FROM <tabla> WHERE <col> = <valor>;`.
+
+- Elimina registros basados en una condición de igualdad:
+  `DELETE FROM <tabla> WHERE <col> = <valor>;`.
 
 ### Funciones y Lógica Principal
 
-* `parse()`: Punto de entrada que procesa el flujo de tokens hasta encontrar el fin de archivo (`EOF`), devolviendo una lista de comandos ejecutables.
-* `_parse_condition()`: Método central para la resolución de la cláusula `WHERE`. Identifica si se trata de una condición simple (`SimpleCondition`), de rango (`BetweenCondition`) o espacial (`RadiusCondition`/`KNNCondition`).
-* `_parse_type_name()`: Algoritmo que permite capturar definiciones de tipos de datos extensas (con espacios y paréntesis internos) de forma segura.
-* **Manejo de Errores:** Lanza la excepción personalizada `SQLParserError` ante fallos sintácticos, detallando la línea y columna exacta del error para facilitar la depuración.
+- `parse()`: Punto de entrada que procesa el flujo de tokens hasta encontrar el
+  fin de archivo (`EOF`), devolviendo una lista de comandos ejecutables.
+- `_parse_condition()`: Método central para la resolución de la cláusula
+  `WHERE`. Identifica si se trata de una condición simple (`SimpleCondition`),
+  de rango (`BetweenCondition`) o espacial (`RadiusCondition`/`KNNCondition`).
+- `_parse_type_name()`: Algoritmo que permite capturar definiciones de tipos de
+  datos extensas (con espacios y paréntesis internos) de forma segura.
+- **Manejo de Errores:** Lanza la excepción personalizada `SQLParserError` ante
+  fallos sintácticos, detallando la línea y columna exacta del error para
+  facilitar la depuración.
 
 ### Ejemplo de Salida (AST)
 
@@ -179,6 +286,7 @@ Para una consulta espacial como:
 `SELECT * FROM locales WHERE posicion IN (POINT (10.5, 20.0), RADIUS 5.0);`
 
 El parser genera el siguiente objeto:
+
 ```python
 SelectCommand(
     table_name='locales',
@@ -191,7 +299,9 @@ SelectCommand(
 ```
 
 ## Qué hace `Engine`
-La clase `Engine` centraliza la ejecución de consultas SQL y la coordinación de estructuras. Soporta:
+
+La clase `Engine` centraliza la ejecución de consultas SQL y la coordinación de
+estructuras. Soporta:
 
 - `CREATE TABLE ...`
 - `CREATE TABLE ... FROM FILE ...`
@@ -210,6 +320,7 @@ Además:
 - usa el índice correcto cuando la consulta lo permite
 
 ## Tipos e índices soportados
+
 Tipos de columna soportados por el motor:
 
 - `INT`, `INTEGER`, `SERIAL`
@@ -236,6 +347,7 @@ CREATE TABLE lugares (
 ```
 
 ## Librerías necesarias
+
 El backend y el motor requieren Python 3.11+ y estas librerías:
 
 ```bash
@@ -245,6 +357,7 @@ pip install fastapi uvicorn pydantic
 No se necesita un motor de base de datos externo.
 
 ## Cómo ejecutar el backend
+
 Desde la raíz del proyecto:
 
 ```bash
@@ -267,6 +380,7 @@ http://127.0.0.1:8000
 ## Ejemplos JSON por endpoint
 
 ### `GET /health`
+
 Response:
 
 ```json
@@ -277,6 +391,7 @@ Response:
 ```
 
 ### `GET /tables`
+
 Response:
 
 ```json
@@ -322,6 +437,7 @@ Response:
 ```
 
 ### `GET /tables/{table_name}`
+
 Ejemplo:
 
 ```text
@@ -371,6 +487,7 @@ Response:
 ```
 
 ### `POST /query`
+
 Request:
 
 ```json
@@ -426,6 +543,7 @@ Response:
 ```
 
 ### `POST /query` para insertar
+
 Request:
 
 ```json
@@ -460,6 +578,7 @@ Response:
 ```
 
 ### `POST /query` para seleccionar
+
 Request:
 
 ```json
@@ -497,6 +616,7 @@ Response:
 ```
 
 ### `POST /query` para borrar
+
 Request:
 
 ```json
@@ -534,6 +654,7 @@ Response:
 ```
 
 ## Cómo usar el scanner por lote
+
 Si solo quieres procesar archivos `.txt` del directorio `input/`:
 
 ```bash
@@ -543,6 +664,7 @@ python -m parser.main
 Esto genera archivos `*_tokens.txt` en la misma carpeta.
 
 ## Flujo recomendado de prueba
+
 1. Levantar el backend con `python -m backend.app`.
 2. Crear una tabla con `POST /query`.
 3. Insertar registros.
@@ -553,7 +675,8 @@ Esto genera archivos `*_tokens.txt` en la misma carpeta.
 
 ### `PageManager`
 
-`PageManager` es la capa de E/S paginada del proyecto. Evita que el resto del codigo lea o escriba archivos binarios directamente.
+`PageManager` es la capa de E/S paginada del proyecto. Evita que el resto del
+codigo lea o escriba archivos binarios directamente.
 
 Responsabilidades:
 
@@ -579,11 +702,14 @@ Internamente:
 5. incrementa el contador de escrituras.
 ```
 
-`PagedFile` es un adaptador pequeno con metodos tipo archivo (`seek`, `read`, `write`, `truncate`). Se usa para que los indices puedan seguir trabajando con una interfaz parecida a `open()`, pero pasando por `PageManager`.
+`PagedFile` es un adaptador pequeno con metodos tipo archivo (`seek`, `read`,
+`write`, `truncate`). Se usa para que los indices puedan seguir trabajando con
+una interfaz parecida a `open()`, pero pasando por `PageManager`.
 
 ### `Table_file_managment`
 
-`Table_file_managment.py` maneja el archivo fisico principal de cada tabla, tambien llamado heap file.
+`Table_file_managment.py` maneja el archivo fisico principal de cada tabla,
+tambien llamado heap file.
 
 Este archivo guarda:
 
@@ -600,7 +726,8 @@ El header contiene:
 - numero de atributos fisicos;
 - flags de indices.
 
-Los registros se guardan al final del archivo. Cada registro termina con un byte `tombstone` para marcar borrado logico.
+Los registros se guardan al final del archivo. Cada registro termina con un byte
+`tombstone` para marcar borrado logico.
 
 ### Flujo general de la BD
 
@@ -610,7 +737,9 @@ Los registros se guardan al final del archivo. Cada registro termina con un byte
 SQL -> parser -> engine -> init_main_db()
 ```
 
-`init_main_db()` crea el archivo vacio, construye el header inicial y lo escribe con `__write_header()`, que usa `PageManager`. El engine guarda el schema logico en `runtime/catalog.json`.
+`init_main_db()` crea el archivo vacio, construye el header inicial y lo escribe
+con `__write_header()`, que usa `PageManager`. El engine guarda el schema logico
+en `runtime/catalog.json`.
 
 `INSERT`:
 
@@ -618,7 +747,9 @@ SQL -> parser -> engine -> init_main_db()
 SQL -> parser -> engine -> insert_record() -> indices
 ```
 
-`insert_record()` lee el header, calcula el offset fisico del nuevo registro, escribe el registro, actualiza `reg_number` y devuelve el `db_offset`. Luego el engine inserta en cada indice:
+`insert_record()` lee el header, calcula el offset fisico del nuevo registro,
+escribe el registro, actualiza `reg_number` y devuelve el `db_offset`. Luego el
+engine inserta en cada indice:
 
 ```text
 clave -> db_offset
@@ -630,7 +761,8 @@ clave -> db_offset
 SQL -> parser -> engine -> indice -> heap file
 ```
 
-El indice devuelve offsets fisicos. Luego el engine lee las filas completas desde el heap file usando `iter_records()` o lectura por offset.
+El indice devuelve offsets fisicos. Luego el engine lee las filas completas
+desde el heap file usando `iter_records()` o lectura por offset.
 
 `DELETE`:
 
@@ -638,7 +770,8 @@ El indice devuelve offsets fisicos. Luego el engine lee las filas completas desd
 SQL -> parser -> engine -> indice -> delete_record()
 ```
 
-`delete_record()` marca el tombstone del registro en el heap file. Despues el engine elimina la entrada correspondiente de cada indice.
+`delete_record()` marca el tombstone del registro en el heap file. Despues el
+engine elimina la entrada correspondiente de cada indice.
 
 ### Como ayuda esto a la paginacion
 
@@ -664,6 +797,7 @@ Eso permite defender que:
 - los indices guardan punteros al heap file en vez de duplicar filas completas.
 
 ## Pendiente
+
 Todavía faltan piezas del enunciado original:
 
 - métricas reales de accesos a página

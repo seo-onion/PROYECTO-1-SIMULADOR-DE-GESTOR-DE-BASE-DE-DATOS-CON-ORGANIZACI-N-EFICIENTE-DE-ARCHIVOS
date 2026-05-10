@@ -10,8 +10,8 @@ if str(DB_SOURCE_DIR) not in sys.path:
 
 from page_manager import PageManager, PagedFile, create_empty_file
 
-MAX_DEPTH  = 8        # profundidad máxima global → 256 entradas en directorio
-BUCKET_CAP = 4        # entradas por bucket
+MAX_DEPTH  = 16        # profundidad máxima global → 256 entradas en directorio
+BUCKET_CAP = 64        # entradas por bucket
 
 _HDR_FMT       = '= i i i'
 _HDR_SIZE      = struct.calcsize(_HDR_FMT)          # 12 bytes

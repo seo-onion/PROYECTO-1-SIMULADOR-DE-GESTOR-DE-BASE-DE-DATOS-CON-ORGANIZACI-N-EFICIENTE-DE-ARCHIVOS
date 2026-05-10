@@ -13,7 +13,6 @@ class TokenType(Enum):
     INTO = auto()
     VALUES = auto()
     DELETE = auto()
-    NULL = auto()
     
     BETWEEN = auto()
     AND = auto()

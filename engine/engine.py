@@ -416,7 +416,7 @@ class Engine:
         for db_offset, record, deleted in iter_records(runtime.schema.db_file):
             if deleted:
                 continue
-            row = self._record_to_row(runtime, record)
+            row = self._row_at_offset(runtime, offset)
             ranked.append((self._distance(point_value, tuple(row[column.name])), db_offset))
         ranked.sort(key=lambda item: item[0])
         return [offset for _, offset in ranked[: max(1, int(k))]]
@@ -478,16 +478,6 @@ class Engine:
         return row
 
     def _normalize_value(self, column: ColumnSchema, value: Any) -> Any:
-        if value is None:
-            if column.is_spatial:
-                return tuple([0.0] * column.dimension)
-            type_name = column.type_name.upper()
-            if type_name in {"INT", "INTEGER", "SERIAL"}:
-                return 0
-            if type_name in {"FLOAT", "REAL", "DOUBLE"}:
-                return 0.0
-            return ""
-
         type_name = column.type_name.upper()
         if column.is_spatial:
             if isinstance(value, str):
