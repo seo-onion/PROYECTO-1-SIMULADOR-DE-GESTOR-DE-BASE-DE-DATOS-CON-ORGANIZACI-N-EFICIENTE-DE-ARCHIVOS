@@ -5,6 +5,7 @@ services:
       - "8000:8000"
     volumes:
       - .:/app
+      - /app/runtime
     environment:
       - PYTHONPATH=/app
     restart: always

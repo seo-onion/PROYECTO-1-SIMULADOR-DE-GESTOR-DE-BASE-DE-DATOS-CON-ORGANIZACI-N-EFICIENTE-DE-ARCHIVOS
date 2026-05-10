@@ -12,7 +12,7 @@ from page_manager import PageManager, create_empty_file
 
 create = 'w+b'
 edit = "rb+"
-B = 32 #si ponen 2 aqui ya fue ya, el delete la malogra
+B = 200 #si ponen 2 aqui ya fue ya, el delete la malogra
 # QUE COMENTARIO DE MRDA XD
 
 

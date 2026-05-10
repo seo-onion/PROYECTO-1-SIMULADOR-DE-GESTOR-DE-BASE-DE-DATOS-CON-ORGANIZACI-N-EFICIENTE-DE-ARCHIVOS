@@ -416,7 +416,7 @@ class Engine:
         for db_offset, record, deleted in iter_records(runtime.schema.db_file):
             if deleted:
                 continue
-            row = self._row_at_offset(runtime, offset)
+            row = self._record_to_row(runtime, record)
             ranked.append((self._distance(point_value, tuple(row[column.name])), db_offset))
         ranked.sort(key=lambda item: item[0])
         return [offset for _, offset in ranked[: max(1, int(k))]]
@@ -533,14 +533,13 @@ class Engine:
         return row
 
     def _row_at_offset(self, runtime: TableRuntime, db_offset: int) -> Dict[str, Any]:
-        for offset, record, deleted in iter_records(runtime.schema.db_file):
-            if offset == db_offset:
-                if deleted:
-                    raise ValueError(f"El registro en offset {db_offset} está eliminado")
-                row = self._record_to_row(runtime, record)
-                row["_db_offset"] = db_offset
-                return row
-        raise ValueError(f"No se encontró el registro en offset {db_offset}")
+        from DB_source.Table_file_managment import read_record_at
+        record, deleted = read_record_at(runtime.schema.db_file, db_offset)
+        if deleted:
+            raise ValueError(f"El registro en offset {db_offset} está eliminado")
+        row = self._record_to_row(runtime, record)
+        row["_db_offset"] = db_offset
+        return row
 
     def _build_column_schema(self, column: ColumnDefinition) -> ColumnSchema:
         type_name = column.type_name.strip()
