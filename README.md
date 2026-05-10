@@ -1,68 +1,20 @@
 # PROYECTO 1: Simulador de Gestor de BD (BD2)
 
-## 🐳 Ejecución con Docker (Recomendado)
+## Ejecución con Docker
 
-... (contenido anterior) ...
+1. **Construir y levantar el contenedor:**
+   ```bash
+   docker-compose up --build
+   ```
 
----
-
-## 📝 Ejemplo de Query SQL (Dataset Pokemon)
-
-Puedes usar esta consulta para crear una tabla compleja y probar el simulador:
-
-```sql
-CREATE TABLE pokemon_complete_2025 (
-    pokedex_id INT,
-    name VARCHAR(50),
-    genus VARCHAR(50),
-    generation VARCHAR(10),
-    type_1 VARCHAR(20),
-    type_2 VARCHAR(20),
-    num_types INT,
-    hp INT,
-    attack INT,
-    defense INT,
-    sp_attack INT,
-    sp_defense INT,
-    speed INT,
-    base_stat_total INT,
-    height_m FLOAT,
-    weight_kg FLOAT,
-    base_experience INT,
-    ability_1 VARCHAR(50),
-    ability_2 VARCHAR(50),
-    hidden_ability VARCHAR(50),
-    color VARCHAR(20),
-    shape VARCHAR(30),
-    habitat VARCHAR(30),
-    growth_rate VARCHAR(30),
-    egg_groups VARCHAR(50),
-    is_legendary VARCHAR(10),
-    is_mythical VARCHAR(10),
-    is_baby VARCHAR(10),
-    capture_rate INT,
-    base_happiness INT,
-    hatch_counter INT,
-    gender_rate INT,
-    description VARCHAR(255),
-    sprite_url VARCHAR(150),
-    is_dual_type VARCHAR(10),
-    bmi FLOAT,
-    attack_defense_ratio FLOAT,
-    physical_total INT,
-    special_total INT,
-    offensive_total INT,
-    defensive_total INT,
-    gender_distribution VARCHAR(50),
-    stat_tier VARCHAR(50)
-);
-```
+2. **Acceder a la interfaz:**
+   Acceder a [http://localhost:8000](http://localhost:8000)
 
 ---
 
-## 🔍 Guía de Consultas SQL Soportadas
+## Guía de Consultas SQL Soportadas
 
-Tu motor de base de datos soporta un subconjunto específico de SQL diseñado para
+El motor de base de datos soporta un subconjunto específico de SQL diseñado para
 probar estructuras de indexación en disco.
 
 ### 1. Definición de Tablas (DDL)
@@ -133,16 +85,59 @@ DELETE FROM usuarios WHERE id = 1;
 
 ---
 
-## Estado actual
+## Ejemplo de Query SQL (Dataset Pokemon)
 
-El proyecto ya no está solo en la etapa de scanner. Actualmente incluye:
+Usar esta consulta para crear una tabla compleja y probar el simulador:
 
-- `parser/`: scanner y parser del subconjunto SQL del proyecto.
-- `DB_source/`: manejo del archivo principal de la tabla en binario.
-- `Data_structures/B+TREE/`: índices persistentes `Sequential`,
-  `Extendible Hash`, `B+Tree` y `RTree`.
-- `engine/`: clase `Engine` que conecta parser, heap file e índices.
-- `backend/`: API HTTP en FastAPI para futuras conexiones con frontend.
+```sql
+CREATE TABLE pokemon_complete_2025 (
+    pokedex_id INT,
+    name VARCHAR(50),
+    genus VARCHAR(50),
+    generation VARCHAR(10),
+    type_1 VARCHAR(20),
+    type_2 VARCHAR(20),
+    num_types INT,
+    hp INT,
+    attack INT,
+    defense INT,
+    sp_attack INT,
+    sp_defense INT,
+    speed INT,
+    base_stat_total INT,
+    height_m FLOAT,
+    weight_kg FLOAT,
+    base_experience INT,
+    ability_1 VARCHAR(50),
+    ability_2 VARCHAR(50),
+    hidden_ability VARCHAR(50),
+    color VARCHAR(20),
+    shape VARCHAR(30),
+    habitat VARCHAR(30),
+    growth_rate VARCHAR(30),
+    egg_groups VARCHAR(50),
+    is_legendary VARCHAR(10),
+    is_mythical VARCHAR(10),
+    is_baby VARCHAR(10),
+    capture_rate INT,
+    base_happiness INT,
+    hatch_counter INT,
+    gender_rate INT,
+    description VARCHAR(255),
+    sprite_url VARCHAR(150),
+    is_dual_type VARCHAR(10),
+    bmi FLOAT,
+    attack_defense_ratio FLOAT,
+    physical_total INT,
+    special_total INT,
+    offensive_total INT,
+    defensive_total INT,
+    gender_distribution VARCHAR(50),
+    stat_tier VARCHAR(50)
+);
+```
+
+---
 
 ## Analizador Sintáctico (SQL Parser)
 
