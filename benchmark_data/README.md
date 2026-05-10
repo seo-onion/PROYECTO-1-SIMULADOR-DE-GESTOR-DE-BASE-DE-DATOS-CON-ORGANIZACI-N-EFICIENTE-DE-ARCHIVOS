@@ -71,3 +71,41 @@ Cada fila tiene:
 | `score` | `FLOAT` | `BTREE` |
 | `pos` | `POINT2D` | `RTREE` |
 | `name` | `VARCHAR(24)` | sin indice |
+
+## Cargar datasets externos para el front
+
+El script `load_external_datasets.py` prepara los CSV en el formato que espera el engine y ejecuta `CREATE TABLE ... FROM FILE` sin modificar la implementacion de la BD.
+
+Preparar CSVs sin cargar tablas:
+
+```bash
+python benchmark_data/load_external_datasets.py --dataset all --csv-only
+```
+
+Cargar en el runtime local que usa el backend:
+
+```bash
+python benchmark_data/load_external_datasets.py --dataset pokemon --mode local
+python benchmark_data/load_external_datasets.py --dataset customers_10000 --mode local
+python benchmark_data/load_external_datasets.py --dataset customers_100000 --mode local
+python benchmark_data/load_external_datasets.py --dataset airbnb --mode local
+```
+
+Si el backend ya esta prendido y quieres que el front vea la tabla en esa misma sesion, manda la carga por el endpoint:
+
+```bash
+python benchmark_data/load_external_datasets.py --dataset pokemon --mode backend --api-url http://127.0.0.1:8000/query
+```
+
+Para repetir desde cero en modo local, usa un runtime limpio:
+
+```bash
+python benchmark_data/load_external_datasets.py --dataset all --mode local --reset-runtime
+```
+
+Datasets soportados:
+
+- `pokemon`: usa `pokemon_complete_2025.csv` y crea `pokemon_complete_2025` con `pokedex_id INDEX HASH`, `name INDEX SEQUENTIAL` y `base_stat_total INDEX BTREE`.
+- `customers_10000`: usa `customers-10000.csv`, normaliza headers y crea `customers_10000` con `id INDEX HASH`, `Customer_Id INDEX SEQUENTIAL` y `Subscription_Date INDEX BTREE`.
+- `customers_100000`: usa `customers-100000.csv`, normaliza headers y crea `customers_100000` con `id INDEX HASH`, `Customer_Id INDEX SEQUENTIAL`, `First_Name INDEX HASH` y `Subscription_Date INDEX BTREE`.
+- `airbnb`: convierte `ab_nyc_2019.sql` a CSV compatible y crea `airbnb_locations` con `id INDEX HASH`, `coords POINT2D INDEX RTREE` y `price INDEX BTREE`.
